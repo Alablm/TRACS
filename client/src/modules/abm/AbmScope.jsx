@@ -51,6 +51,7 @@ import { shownSpcAlerts } from '../../utils/spc.js'
 import { drawAbmGroundContacts } from './canvas/drawAbmGroundContacts.js'
 import { drawAbmFragRoute } from './canvas/drawAbmFragRoute.js'
 import { useAbmMissionStore } from '../../store/abmMission.js'
+import { parseAltEntry, formatAlt, ALT_CLEAR } from './flightAlt.js'
 import { useBrevityStore } from '../../store/brevity.js'
 import { preloadAirdromes } from '../../utils/airdromes.js'
 import { drawBraaOverlays, drawThreatRings } from './canvas/drawAbmBraa.js'
@@ -86,7 +87,7 @@ const EMPTY_AIRWAYS_VISIBLE = { V: false, J: false, B: false }
 const RANGE_MIN  = 1
 const RANGE_MAX  = 600
 const MAX_HISTORY   = 10  // absolute cap on captured points; display capped by historyLength setting
-const ALT_TOGGLE_MS   = 2000  // datablock line-2 speed/type alternation rate
+const ALT_TOGGLE_MS   = 2000  // datablock line-2 speed/type/requested-alt alternation rate
 const READOUT_RADIUS_PX = 10    // cursor-proximity radius for the unit readout box
 const READOUT_CYCLE_MS  = 3000  // per-object fade in/out phase when >1 unit is under the cursor
 // Must match SEA_COLOR in server/scripts/buildAbmBasemap.js — the .base
@@ -97,6 +98,20 @@ const READOUT_CYCLE_MS  = 3000  // per-object fade in/out phase when >1 unit is 
 // continuation of whichever raster is showing instead of a mismatched or
 // black border around it.
 const BASEMAP_SEA_COLOR = 'rgb(26, 38, 48)'
+
+// Create-or-reconcile a manual FRAG flight for a live contact — Ctrl+Shift+Click
+// and ++alt + click on an aircraft not yet in any flight. Own side only (true
+// coalition, not the declaration); GM/Admin can file either side's aircraft
+// under that aircraft's own coalition. Returns the flight's groupId, or null.
+function ensureFlightForUnit(unit, { isGmOrAdmin, myCoalitionNum, coalition }) {
+  const unitSide = unit?.coalition === 2 ? 'blue' : unit?.coalition === 1 ? 'red' : null
+  if (!unit || !(isGmOrAdmin ? unitSide != null : unit.coalition === myCoalitionNum)) return null
+  const liveCallsign = resolveCallsign(unit)
+  const fe = parseFlightElement(unit)
+  const flightKey = fe ? fe.flightKey : liveCallsign
+  if (!flightKey || !liveCallsign) return null
+  return useAbmMissionStore.getState().ensureManualRosterEntry(flightKey, liveCallsign, isGmOrAdmin ? unitSide : coalition)
+}
 
 const F_KEY_DECL = {
   F1: DECLARATION.HOSTILE,
@@ -287,6 +302,20 @@ export default function AbmScope({ windowId = DEFAULT_windowId, focusKey = null,
   )
   const visibleUnitsRef = useRef(visibleUnits)
   useEffect(() => { visibleUnitsRef.current = visibleUnits }, [visibleUnits])
+
+  // ++alt / FRAG Alt — each visible aircraft's flight altitude, keyed by
+  // unit id, for the datablock's R### phase. Skipped outright while no
+  // flight has one assigned.
+  const flightAltByUnitId = useMemo(() => {
+    if (!atoFlights.some(f => f.alt)) return EMPTY_OBJECT
+    const { resolveFlightForUnit } = useAbmMissionStore.getState()
+    const out = {}
+    for (const [id, unit] of Object.entries(visibleUnits)) {
+      const alt = resolveFlightForUnit(unit)?.alt
+      if (alt) out[String(id)] = alt
+    }
+    return out
+  }, [visibleUnits, atoFlights])
 
   // Missile tracking — own-coalition/neutral always visible, enemy gated by
   // server/src/missileDetection.js's AWACS/EWR-only detection (see
@@ -535,11 +564,13 @@ export default function AbmScope({ windowId = DEFAULT_windowId, focusKey = null,
   // drawAbmMissiles call never passes a history map, so it never draws one.
   const missileHistoryRef = useHistoryCapture(visibleMissilesRef, windowSettings?.historyRate, { sourceStore: useWeaponsStore, pauseAtZeroRate: false })
 
-  // Datablock line-2 speed/type alternation (friendlies only) — same idea as
-  // STARS' blink timers, just a plain toggle rather than a visibility blink.
-  const [altToggle, setAltToggle] = useState(false)
+  // Datablock line-2 speed/type(/requested alt) alternation (friendlies
+  // only) — same idea as STARS' blink timers, just a plain phase counter
+  // rather than a visibility blink. Wraps at 6 so both the 2-step and the
+  // 3-step cycle stay continuous across the wrap.
+  const [dbPhase, setDbPhase] = useState(0)
   useEffect(() => {
-    const id = setInterval(() => setAltToggle(v => !v), ALT_TOGGLE_MS)
+    const id = setInterval(() => setDbPhase(v => (v + 1) % 6), ALT_TOGGLE_MS)
     return () => clearInterval(id)
   }, [])
 
@@ -1198,7 +1229,7 @@ export default function AbmScope({ windowId = DEFAULT_windowId, focusKey = null,
       ctx, view, visibleUnits, getDecl,
       windowSettings?.ptlMinutes ?? 1,
       windowSettings?.dbVisible ?? true,
-      altToggle,
+      dbPhase,
       windowSettings?.ldrLength ?? 2,
       windowSettings?.ldrAngleDeg ?? -45,
       windowSettings?.leaderDirs ?? {},
@@ -1223,6 +1254,7 @@ export default function AbmScope({ windowId = DEFAULT_windowId, focusKey = null,
       windowSettings?.dbSize ?? 2,
       (unit) => isOwnSide(unit, coalition),
       spcAlerts,
+      flightAltByUnitId,
     )
     drawAbmGroundContacts(ctx, view, pinnedGroundUnits, getDecl, groundUnitDb, acqHidden, engHidden, highlightedIds)
     drawAbmMissiles(
@@ -1253,7 +1285,7 @@ export default function AbmScope({ windowId = DEFAULT_windowId, focusKey = null,
     // of everything, same as RBL.
     drawPendingDraw(ctx, view, pendingDraw, drawCursor, windowSettings?.csMap ?? 2)
   // eslint-disable-next-line react-hooks/exhaustive-deps -- historyRef/missileHistoryRef are stable refs returned by useHistoryCapture
-  }, [view, visibleUnits, spcAlerts, visibleMissiles, pinnedGroundUnits, allVisibleUnits, groundUnitDb, declarations, myCoalitionNum, coalition, getDecl, altToggle,
+  }, [view, visibleUnits, spcAlerts, visibleMissiles, pinnedGroundUnits, allVisibleUnits, groundUnitDb, declarations, myCoalitionNum, coalition, getDecl, dbPhase, flightAltByUnitId,
       windowSettings?.ptlMinutes, windowSettings?.dbVisible, windowSettings?.dbSuppress,
       windowSettings?.ldrLength, windowSettings?.ldrAngleDeg, windowSettings?.leaderDirs, fadedTick,
       windowSettings?.historyVisible, windowSettings?.historyLength, windowSettings?.dbca,
@@ -1781,16 +1813,8 @@ export default function AbmScope({ windowId = DEFAULT_windowId, focusKey = null,
     // GM/Admin aren't tied to a side, so they can open either side's
     // aircraft; the flight is filed under the aircraft's own coalition.
     if (e.ctrlKey && e.shiftKey && !e.altKey) {
-      const unitSide = target?.unit?.coalition === 2 ? 'blue' : target?.unit?.coalition === 1 ? 'red' : null
-      if (target?.unit && (isGmOrAdmin ? unitSide != null : target.unit.coalition === myCoalitionNum)) {
-        const liveCallsign = resolveCallsign(target.unit)
-        const fe = parseFlightElement(target.unit)
-        const flightKey = fe ? fe.flightKey : liveCallsign
-        if (flightKey && liveCallsign) {
-          const groupId = useAbmMissionStore.getState().ensureManualRosterEntry(flightKey, liveCallsign, isGmOrAdmin ? unitSide : coalition)
-          selectAtoGroup(groupId)
-        }
-      }
+      const groupId = ensureFlightForUnit(target?.unit, { isGmOrAdmin, myCoalitionNum, coalition })
+      if (groupId != null) selectAtoGroup(groupId)
       return
     }
 
@@ -1862,6 +1886,31 @@ export default function AbmScope({ windowId = DEFAULT_windowId, focusKey = null,
       if (flight && ownSide) {
         selectAtoGroup(flight.groupId)
         setCmdFeedback('FRAG OPENED')
+      } else {
+        setCmdFeedback('NO FRAG')
+      }
+      setCmdBuffer('')
+      return
+    }
+
+    // ++### / ++###### + click — assigned/requested altitude (hard or block)
+    // for the clicked aircraft's whole flight, shown as R### on every
+    // aircraft's datablock. ++000 clears. An aircraft not in any flight gets
+    // one created first, same as Ctrl+Shift+Click.
+    const altMatch = buf.match(/^\+\+(\d+)$/)
+    if (altMatch) {
+      if (!target) return
+      const parsed = parseAltEntry(altMatch[1])
+      if (parsed.error) { setCmdFeedback(parsed.error); setCmdBuffer(''); return }
+      const mission = useAbmMissionStore.getState()
+      const groupId = mission.resolveFlightForUnit(target.unit)?.groupId
+        ?? ensureFlightForUnit(target.unit, { isGmOrAdmin, myCoalitionNum, coalition })
+      const flight = groupId != null ? useAbmMissionStore.getState().flights.find(f => f.groupId === groupId) : null
+      const ownSide = coalition !== 'blue' && coalition !== 'red' || flight?.coalition === coalition
+      if (flight && ownSide) {
+        const alt = parsed === ALT_CLEAR ? null : parsed
+        mission.setFlightAlt(flight.groupId, alt)
+        setCmdFeedback(alt ? `ALT ${formatAlt(alt)}` : 'ALT CLEARED')
       } else {
         setCmdFeedback('NO FRAG')
       }

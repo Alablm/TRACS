@@ -16,6 +16,7 @@ import { DECLARATION } from '../../../store/abm.js'
 import { placeDatablocks } from '../../../utils/datablockPlacement.js'
 import { resolveCallsign } from '../../../utils/callsign.js'
 import { altHundreds, speedTens, distFromNm } from '../../../utils/units.js'
+import { formatAlt } from '../flightAlt.js'
 
 const SYM_HALF     = 3   // square half-width, px (hollow outline, not filled)
 const CULL_MARGIN  = 60
@@ -170,7 +171,7 @@ function drawFadedContacts(ctx, view, fadedContacts, now, ptlMinutes) {
 
 export function drawAbmContacts(
   ctx, view, units, getDecl,
-  ptlMinutes, dbVisible, altToggle,
+  ptlMinutes, dbVisible, dbPhase,
   ldrLength, ldrAngleDeg, leaderDirs,
   history, historyLimit,
   fadedContacts = {}, fadedNow = 0,
@@ -192,6 +193,7 @@ export function drawAbmContacts(
   dbSize = 2,
   isOwnSide = () => true,
   spcAlerts = EMPTY_OBJ,
+  flightAltByUnitId = EMPTY_OBJ,
 ) {
   const { width, height } = view
   const fontPx     = 8 + dbSize * 2
@@ -291,8 +293,13 @@ export function drawAbmContacts(
     const spd10   = speedTens(unit.speed ?? 0, view.unitSystem)
 
     const unitDir   = leaderDirs?.[String(id)]
-    const altSpdLine = `${alt100} ${spd10}`
-    const line2      = (altToggle && knowsType) ? `${alt100} ${typeAbbrev(unit)}` : altSpdLine
+    // Line 2 right field cycles: speed, type (once known), then the flight's
+    // ++alt-assigned R### / R###-### (own flights only, while one is set).
+    const reqAlt = isFriendly ? formatAlt(flightAltByUnitId[String(id)], view.unitSystem) : ''
+    const fields = [spd10]
+    if (knowsType) fields.push(typeAbbrev(unit))
+    if (reqAlt) fields.push(reqAlt)
+    const line2      = `${alt100} ${fields[dbPhase % fields.length]}`
     const line1      = isFriendly ? resolveCallsign(unit).toUpperCase() : iffFrames[iffCycleIndex % iffFrames.length]
     const lines      = showsBlock ? [line1, line2] : [line2]
 

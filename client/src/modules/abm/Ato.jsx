@@ -12,8 +12,10 @@ import { AbmMissionImport } from './AbmMissionImport.jsx'
 import { AddAtoFlight } from './AddAtoFlight.jsx'
 import './Ato.css'
 import { getIcaoMapping } from '../../utils/icaoMapping.js'
+import { useUnitSystem } from '../../store/unitSystem.js'
+import { formatAltRange } from './flightAlt.js'
 
-export const ATO_NATURAL_WIDTH = 460
+export const ATO_NATURAL_WIDTH = 508
 
 const ATO_SCALE_KEY    = 'tracs.ato.scale'
 const ATO_SORT_KEY_KEY = 'tracs.ato.sortKey'
@@ -28,6 +30,7 @@ const COLUMNS = [
   { key: 'num',      label: 'TYPE/NUM',  width: 70  },
   { key: 'callsign', label: 'CALLSIGN',  width: 70  },
   { key: 'taskunit', label: 'TASKUNIT',  width: 50  },
+  { key: 'alt',      label: 'ALT',       width: 48  },
   { key: 'freq',     label: 'FREQ',      width: 58  },
   { key: 'status',   label: 'STATUS',    width: 1   },   // flex remainder
 ]
@@ -73,6 +76,7 @@ const SORT_ACCESSORS = {
   num:      r => r.units[0]?.type ?? '',
   callsign: r => r.callsignLabel ?? '',
   taskunit: r => r.taskunitLabel ?? '',
+  alt:      r => (r.alt?.lo ? Number(r.alt.lo) : -1),
   freq:     r => r.frequency ?? -1,
   // RESERVE is its own group, separate from the "active" states (ACTIVE/
   // AIR/GROUND/TAXI) — plain alphabetical would interleave RESERVE between
@@ -88,6 +92,7 @@ export function Ato({ docked = true, width, onResize, onUndock, onDock, onHide, 
   const clearAllFlights = useAbmMissionStore(s => s.clearAllFlights)
   const removeFlight = useAbmMissionStore(s => s.removeFlight)
   const taskOverrides = useAbmMissionStore(s => s.taskOverrides)
+  const unitSystem    = useUnitSystem('abm')
   const sessionCoalition = useSessionStore(s => s.coalition)
   const liveUnits = useUnitsStore(s => s.units)
 
@@ -226,11 +231,12 @@ export function Ato({ docked = true, width, onResize, onUndock, onDock, onHide, 
       // over the mission's own task string when a controller has set one.
       taskLabel: (taskOverrides ?? {})[f.groupId] ?? (f.task || f.rawTask || '—'),
       taskunitLabel: airfieldAbbrev(resolveBase(f), icaoMap),
+      altLabel: formatAltRange(f.alt, unitSystem) || '—',
       freqLabel: f.frequency != null ? f.frequency.toFixed(3) : '—',
       isReserve: f.lateActivation && !isLive,
       statusLabel,
     }
-  }), [flights, icaoMap, liveByDcsId, findLiveUnit, liveUnits, taskOverrides])
+  }), [flights, icaoMap, liveByDcsId, findLiveUnit, liveUnits, taskOverrides, unitSystem])
 
   const sortedRows = useMemo(() => {
     if (!sortKey) return rows
@@ -286,6 +292,7 @@ export function Ato({ docked = true, width, onResize, onUndock, onDock, onHide, 
                 <span>{row.numType}</span>
                 <span>{row.callsignLabel}</span>
                 <span className="ato-taskunit">{row.taskunitLabel}</span>
+                <span>{row.altLabel}</span>
                 <span>{row.freqLabel}</span>
                 <span className={row.isReserve ? 'ato-reserve' : 'ato-active'}>{row.statusLabel}</span>
                 <span className="ato-row-actions">

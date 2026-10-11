@@ -241,6 +241,37 @@ export const useAbmMissionStore = create((set, get) => ({
     return match?.groupId ?? null
   },
 
+  // resolveGroupIdForUnit plus manual flights, which have no group ID to
+  // match — those correlate by callsign prefix, same rule Ato.jsx/Frag.jsx
+  // use (matchLiveByPrefix).
+  resolveFlightForUnit: (unit) => {
+    const flights = get().flights
+    const groupId = get().resolveGroupIdForUnit(unit)
+    const byGroup = groupId != null ? flights.find((f) => f.groupId === groupId) : null
+    if (byGroup) return byGroup
+    const liveCallsign = resolveCallsign(unit)
+    if (!liveCallsign) return null
+    return flights.find((f) => f.manual && f.callsignPrefix && liveCallsign.startsWith(stripAcid(f.callsignPrefix))) ?? null
+  },
+
+  // Assigned/requested altitude for a whole flight — `{ lo, hi }` in 3-digit
+  // hundreds of feet (hi null for a hard altitude), or null to clear. Synced
+  // to every ABM controller like IFF codes; manual flights carry their
+  // callsignPrefix too, since their groupId is minted per controller.
+  setFlightAlt: (groupId, alt) => {
+    set((s) => ({ flights: s.flights.map((f) => f.groupId !== groupId ? f : { ...f, alt: alt ?? null }) }))
+    const flight = get().flights.find((f) => f.groupId === groupId)
+    if (!flight) return
+    broadcastAbmMission('FRAG_ALT_SET', { groupId, manual: !!flight.manual, callsignPrefix: flight.callsignPrefix ?? null, alt: alt ?? null })
+  },
+
+  _applyFlightAlt: ({ groupId, manual, callsignPrefix, alt }) => set((s) => {
+    let target = s.flights.find((f) => f.groupId === groupId && !!f.manual === !!manual)
+    if (!target && manual && callsignPrefix) target = s.flights.find((f) => f.manual && f.callsignPrefix === callsignPrefix)
+    if (!target) return s
+    return { flights: s.flights.map((f) => f !== target ? f : { ...f, alt: alt ?? null }) }
+  }),
+
   // Sets one unit's assigned Mode 1/2/3 IFF codes (edited from the FRAG
   // window). Imported flights store this directly on their
   // real `units[]` roster (parseMission.js-derived, one entry per aircraft).
@@ -277,7 +308,7 @@ export const useAbmMissionStore = create((set, get) => ({
     }))
     const flight = get().flights.find((f) => f.groupId === groupId)
     if (!flight) return
-    if (manual) broadcastAbmMission('FRAG_MANUAL_FLIGHT_SET', { groupId, name: flight.name, callsignPrefix: flight.callsignPrefix, coalition: flight.coalition, iffRoster: flight.iffRoster })
+    if (manual) broadcastAbmMission('FRAG_MANUAL_FLIGHT_SET', { groupId, name: flight.name, callsignPrefix: flight.callsignPrefix, coalition: flight.coalition, iffRoster: flight.iffRoster, alt: flight.alt ?? null })
     else broadcastAbmMission('FRAG_IFF_SET', { groupId, unitCallsign, iff })
   },
 
@@ -358,7 +389,7 @@ export const useAbmMissionStore = create((set, get) => ({
           }),
         }))
         const patched = get().flights.find((f) => f.groupId === existing.groupId)
-        broadcastAbmMission('FRAG_MANUAL_FLIGHT_SET', { groupId: patched.groupId, name: patched.name, callsignPrefix: patched.callsignPrefix, coalition: patched.coalition, iffRoster: patched.iffRoster })
+        broadcastAbmMission('FRAG_MANUAL_FLIGHT_SET', { groupId: patched.groupId, name: patched.name, callsignPrefix: patched.callsignPrefix, coalition: patched.coalition, iffRoster: patched.iffRoster, alt: patched.alt ?? null })
       }
       return existing.groupId
     }
@@ -373,7 +404,7 @@ export const useAbmMissionStore = create((set, get) => ({
       flights: s.flights.map((f) => f.groupId !== flight.groupId ? f : { ...f, iffRoster: [...(f.iffRoster ?? []), { callsign: unitCallsign, iff: {} }] }),
     }))
     const finalFlight = get().flights.find((f) => f.groupId === flight.groupId)
-    broadcastAbmMission('FRAG_MANUAL_FLIGHT_SET', { groupId: finalFlight.groupId, name: finalFlight.name, callsignPrefix: finalFlight.callsignPrefix, coalition: finalFlight.coalition, iffRoster: finalFlight.iffRoster })
+    broadcastAbmMission('FRAG_MANUAL_FLIGHT_SET', { groupId: finalFlight.groupId, name: finalFlight.name, callsignPrefix: finalFlight.callsignPrefix, coalition: finalFlight.coalition, iffRoster: finalFlight.iffRoster, alt: finalFlight.alt ?? null })
     return flight.groupId
   },
 
@@ -387,7 +418,7 @@ export const useAbmMissionStore = create((set, get) => ({
     }))
     const flight = get().flights.find((f) => f.groupId === groupId)
     if (!flight) return
-    broadcastAbmMission('FRAG_MANUAL_FLIGHT_SET', { groupId: flight.groupId, name: flight.name, callsignPrefix: flight.callsignPrefix, coalition: flight.coalition, iffRoster: flight.iffRoster })
+    broadcastAbmMission('FRAG_MANUAL_FLIGHT_SET', { groupId: flight.groupId, name: flight.name, callsignPrefix: flight.callsignPrefix, coalition: flight.coalition, iffRoster: flight.iffRoster, alt: flight.alt ?? null })
   },
 
   // Applies an incoming FRAG_IFF_SET/FRAG_MANUAL_FLIGHT_SET broadcast from
@@ -406,12 +437,14 @@ export const useAbmMissionStore = create((set, get) => ({
   // {name, callsignPrefix, coalition, iffRoster}, not route/task/etc., and
   // this receiving controller's own Frag.jsx would crash the same way
   // opening it otherwise.
-  _applyManualFlightSet: (groupId, name, callsignPrefix, coalition, iffRoster) => set((s) => {
+  // `alt` is absent from older clients' payloads — leave the local value alone then.
+  _applyManualFlightSet: (groupId, name, callsignPrefix, coalition, iffRoster, alt) => set((s) => {
+    const altPatch = alt === undefined ? {} : { alt }
     const exists = s.flights.some((f) => f.groupId === groupId)
     if (exists) {
-      return { flights: s.flights.map((f) => f.groupId !== groupId ? f : { ...f, name, callsignPrefix, coalition, iffRoster, manual: true }) }
+      return { flights: s.flights.map((f) => f.groupId !== groupId ? f : { ...f, name, callsignPrefix, coalition, iffRoster, ...altPatch, manual: true }) }
     }
-    return { flights: [...s.flights, { groupId, ...MANUAL_FLIGHT_DEFAULTS(name, callsignPrefix, coalition), iffRoster }] }
+    return { flights: [...s.flights, { groupId, ...MANUAL_FLIGHT_DEFAULTS(name, callsignPrefix, coalition), iffRoster, ...altPatch }] }
   }),
 }))
 
@@ -452,7 +485,16 @@ export function applyAbmMissionIffSet(payload) {
 export function applyAbmMissionManualFlightSet(payload) {
   _syncing = true
   try {
-    useAbmMissionStore.getState()._applyManualFlightSet(payload.groupId, payload.name, payload.callsignPrefix, payload.coalition, payload.iffRoster)
+    useAbmMissionStore.getState()._applyManualFlightSet(payload.groupId, payload.name, payload.callsignPrefix, payload.coalition, payload.iffRoster, payload.alt)
+  } finally {
+    _syncing = false
+  }
+}
+
+export function applyAbmMissionFlightAlt(payload) {
+  _syncing = true
+  try {
+    useAbmMissionStore.getState()._applyFlightAlt(payload)
   } finally {
     _syncing = false
   }

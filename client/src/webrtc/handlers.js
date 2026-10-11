@@ -8,7 +8,7 @@ import { useSessionStore } from '../store/session.js'
 import { applyStatusBoardUpdate } from '../store/statusBoard.js'
 import { applyAicDeclaration, applyAicDeclarationsReset, applyAicAutoDeclareMode } from '../store/aic.js'
 import { applyAbmDeclaration, applyAbmDeclarationsReset, applyAbmAutoDeclareMode } from '../store/abm.js'
-import { applyAbmMissionIffSet, applyAbmMissionManualFlightSet } from '../store/abmMission.js'
+import { applyAbmMissionIffSet, applyAbmMissionManualFlightSet, applyAbmMissionFlightAlt } from '../store/abmMission.js'
 import { getMyControllerId } from '../utils/myControllerId.js'
 
 export function handleModuleMessage(msg) {
@@ -189,6 +189,9 @@ function handleAbm(type, payload) {
       break
     case 'FRAG_MANUAL_FLIGHT_SET':
       applyAbmMissionManualFlightSet(payload)
+      break
+    case 'FRAG_ALT_SET':
+      applyAbmMissionFlightAlt(payload)
       break
   }
 }

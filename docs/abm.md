@@ -28,6 +28,7 @@ Type into the buffer and press **Enter**.
 
 A few commands are completed by clicking instead of Enter: type the command, then click the map or a contact. These are:
 - `.be`, `.threat`, `.db`, `.dope`, `.rename`, `.frag`, and `.route`
+- `++###` / `++######` (flight altitude)
 - a bare digit 1–9 (leader direction)
 
 The drawing commands (`.line`, `.rect`, `.circ`, `.poly`, `.sect`, `.race`, `.text`) run on **Enter**. After that, they wait for clicks on the scope to place any points you didn't type.
@@ -130,6 +131,8 @@ ABM does not display SID/STAR/approach procedures.
 | `.dbs` | Formation datablock suppression (on by default). Among aircraft whose callsigns end in two or more digits (e.g. `ENFIELD11`, `ENFIELD12`), only the flight lead shows a datablock while the others are inside a 6×6 NM box around it. The box extends ±3 NM along and across the lead's heading |
 | `.ll [0-7]` | Set leader line length (10 px per step); bare `.ll` reports the current value |
 | `.ld <1-9>` | Set leader line direction (numpad layout); `5` returns to the default direction |
+| `++###` + click | Assign/request a hard altitude for the clicked aircraft's whole flight, in hundreds of feet (3 digits, so 3,000 ft is `++030`). Every aircraft in the flight shows `R###` on datablock line 2, cycling with speed and type. `++000` clears it. An aircraft not in any flight gets one created first, the same way as Ctrl+Shift+Click |
+| `++######` + click | Block altitude, lower first: `++200220` shows `R200-220`. Out-of-order or equal blocks (`++220200`, `++200200`) and wrong-length entries are rejected with `ILL ALT` |
 | `.bedb` | Toggle bullseye-on-datablock: adds a 3rd datablock line with each contact's magnetic bearing/range from bullseye, e.g. `090/20` (off by default) |
 
 ### Emergency squawks
@@ -285,6 +288,7 @@ A sortable table of every tasked flight, with these columns:
 - Type/Num
 - Callsign (resolved once live)
 - **TASKUNIT** — airfield ICAO, carrier hull abbreviation, or "Air Start". FRAG's Tasking view labels this "Base".
+- **ALT** — the flight's assigned altitude (`200` or `200-220`), set with `++` or FRAG's Alt row
 - Frequency
 - Status — **RESERVE** / **ACTIVE** / **AIR** / **TAXI** / **GROUND**. This is the most advanced state across all live-matched aircraft in the flight. RESERVE means none of the flight's aircraft has spawned yet.
 
@@ -305,7 +309,7 @@ Click a column header to sort (click again to reverse). Click a row to select th
 
 Detail view for the flight selected in ATO, or opened with Ctrl+Shift+Click on the scope.
 
-- **Tasking** — editable Task field, full Base name, and Status (same rollup as ATO). Click an airbase or carrier Base to drop a scope marker.
+- **Tasking** — editable Task field, Alt (`[___] to [___]`), full Base name, and Status (same rollup as ATO). Alt takes the same 3-digit values as `++`: fill only the first box for a hard altitude, both for a block (lower first). Empty, or `000` alone, clears it. Both boxes are applied together when you leave the row or press Enter; an invalid pair flashes red and reverts. Click an airbase or carrier Base to drop a scope marker.
 - **Roster** — one row per aircraft.
   - Imported flights: callsign, type, live-resolved callsign, onboard number, skill, air/ground state, ordnance summary (grouped by weapon with counts), a collapsible comms/radio list, and Link16 station if present.
   - Manually-added flights: callsign, type, and state, matched live against aircraft flying that callsign prefix.
@@ -318,6 +322,7 @@ Mouse wheel over the title bar zooms the panel independently of ATO.
 
 **What syncs to other ABM controllers:**
 - IFF codes.
+- Flight altitudes (`++` / FRAG Alt). A controller who joins later doesn't receive altitudes set before they joined.
 - Manual flights (name, callsign prefix, coalition, and roster) once they're created or changed through Ctrl+Shift+Click, + Add Aircraft, ×, or an IFF edit. A flight created with **+ Add Flight** is sent at its first such change.
 - Imported mission data stays local to each controller.
 

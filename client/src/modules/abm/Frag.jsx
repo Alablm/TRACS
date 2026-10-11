@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { useWheelDirection } from '../../utils/wheel.js'
 import { useAbmMissionStore } from '../../store/abmMission.js'
+import { validateAltPair } from './flightAlt.js'
 import { useSessionStore } from '../../store/session.js'
 import { useUnitsStore } from '../../store/units.js'
 import { resolveCallsign, matchLiveByPrefix, buildLiveUnitLookup, stripAcid } from '../../utils/callsign.js'
@@ -171,6 +172,7 @@ export function Frag({ docked = true, width, onResize, onUndock, onDock, onHide,
   const blinkIds = useAbmMissionStore(s => s.blinkIds) ?? []
   const taskOverrides = useAbmMissionStore(s => s.taskOverrides) ?? {}
   const setTaskOverride = useAbmMissionStore(s => s.setTaskOverride)
+  const setFlightAlt    = useAbmMissionStore(s => s.setFlightAlt)
   const liveUnits = useUnitsStore(s => s.units)
 
   // Mission-file unit -> live track. See utils/callsign.js's
@@ -268,6 +270,42 @@ export function Frag({ docked = true, width, onResize, onUndock, onDock, onHide,
     setTaskOverride(flight.groupId, taskDraft.trim() || null)
   }
 
+  // Alt row — same values as `++###`/`++######` + click on the scope. Both
+  // boxes commit together when focus leaves the row (or on Enter), so moving
+  // from the low box to the high box mid-edit never validates a half-typed
+  // block. Empty, or 000 alone, clears.
+  const [altLoDraft, setAltLoDraft] = useState('')
+  const [altHiDraft, setAltHiDraft] = useState('')
+  const [altError, setAltError] = useState(false)
+  const resetAltDrafts = () => {
+    setAltLoDraft(flight?.alt?.lo ?? '')
+    setAltHiDraft(flight?.alt?.hi ?? '')
+  }
+  useEffect(resetAltDrafts, [flight?.groupId, flight?.alt?.lo, flight?.alt?.hi])
+  useEffect(() => {
+    if (!altError) return
+    const id = setTimeout(() => setAltError(false), 1500)
+    return () => clearTimeout(id)
+  }, [altError])
+
+  const commitAlt = () => {
+    if (!flight) return
+    const lo = altLoDraft.trim()
+    const hi = altHiDraft.trim()
+    if (!hi && (!lo || lo === '000')) {
+      if (flight.alt) setFlightAlt(flight.groupId, null)
+      resetAltDrafts()
+      return
+    }
+    const result = validateAltPair(lo, hi || null)
+    if (result.error) {
+      setAltError(true)
+      resetAltDrafts()
+      return
+    }
+    if (result.lo !== flight.alt?.lo || result.hi !== (flight.alt?.hi ?? null)) setFlightAlt(flight.groupId, result)
+  }
+
   // Shared by the flight-level Status line and each roster row's granular
   // state below — carrierUnit is the live carrier Olympus unit a
   // carrier-based flight's TASKUNIT resolves to, used to compare a
@@ -321,6 +359,33 @@ export function Frag({ docked = true, width, onResize, onUndock, onDock, onHide,
                   onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
                   spellCheck={false}
                 />
+              </div>
+              <div className="frag-kv">
+                <span>Alt</span>
+                <span
+                  className="frag-alt-row"
+                  onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) commitAlt() }}
+                >
+                  <input
+                    className={['frag-task-input', 'frag-alt-input', altError ? 'frag-alt-error' : ''].join(' ').trim()}
+                    value={altLoDraft}
+                    onChange={(e) => setAltLoDraft(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                    onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
+                    inputMode="numeric"
+                    placeholder="---"
+                    spellCheck={false}
+                  />
+                  <span className="frag-alt-sep">to</span>
+                  <input
+                    className={['frag-task-input', 'frag-alt-input', altError ? 'frag-alt-error' : ''].join(' ').trim()}
+                    value={altHiDraft}
+                    onChange={(e) => setAltHiDraft(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                    onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
+                    inputMode="numeric"
+                    placeholder="---"
+                    spellCheck={false}
+                  />
+                </span>
               </div>
               <div className="frag-kv">
                 <span>Base</span>

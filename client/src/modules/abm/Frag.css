@@ -134,6 +134,12 @@
 .frag-task-input:hover   { border-color: #333; }
 .frag-task-input:focus   { outline: none; border-color: #FFD700; background: rgba(255, 215, 0, 0.06); }
 
+/* Alt row: two 3-digit boxes, "to" between them. */
+.frag-alt-row   { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; }
+.frag-alt-input { flex: 0 0 auto; width: 4ch; text-align: center; }
+.frag-alt-sep   { color: #888; }
+.frag-alt-error { border-color: #ff4040 !important; }
+
 .frag-base-findable { cursor: pointer; }
 .frag-base-findable:hover { color: #00e000 !important; }
 
