@@ -1,19 +1,24 @@
-// User-imported GeoJSON drawings for the ABM scope. Persisted to
-// localStorage per-theatre (loading a different theatre shows a different
-// stack of drawings, same split as store/abmAirspace.js's per-theatre
-// fetch) and synced live across same-machine windows (main window + a
-// future undocked Drawings popup) via BroadcastChannel — same local-only
-// pattern as store/abmMission.js: these are this controller's own reference
-// overlays, never broadcast to other room peers over WebRTC.
+// User-imported GeoJSON drawings for the ABM scope, per theatre (loading a
+// different theatre shows a different stack of drawings, same split as
+// store/abmAirspace.js's per-theatre fetch). Persisted to IndexedDB through
+// utils/localDb.js, one `<theatre>|drawing|<id>` record per layer, so an
+// edit rewrites only the layers it touched; other same-machine windows
+// (main window + an undocked Drawings popup) re-read just those records.
+// Same local-only pattern as store/abmMission.js: these are this
+// controller's own reference overlays, never broadcast to other room peers
+// over WebRTC.
 
 import { create } from 'zustand'
 import {
   buildLineFeature, buildRectFeature, buildCircFeature,
   buildPolyFeature, buildSectFeature, buildRaceFeature, buildTextFeature,
 } from '../utils/drawShapes.js'
-import { shallowEqual } from '../utils/storeSync.js'
+import {
+  loadWhere, loadPrefix, getRecords, putRecords, deleteRecords, onRemoteChange, describeDbError,
+} from '../utils/localDb.js'
 
-const SB_KEY = 'tracs.abm.drawings'
+// Where drawings lived before IndexedDB - migrated once, then removed.
+const LEGACY_KEY = 'tracs.abm.drawings'
 
 // Command-drawn layers (as opposed to imported GeoJSON files) carry a
 // shapeType + the generative params needed to rebuild their single feature
@@ -50,18 +55,9 @@ function labeledFeature(shapeType, built, name) {
   return { ...built, label: [name] }
 }
 
-function serialize(s) {
-  return { byTheatre: s.byTheatre }
-}
-
-function loadSaved() {
-  try { return JSON.parse(localStorage.getItem(SB_KEY) ?? 'null') } catch { return null }
-}
-
-const saved = loadSaved() ?? {}
-
 export const useAbmDrawingsStore = create((set) => ({
-  byTheatre: saved.byTheatre ?? {},   // { [theatre]: [{id, name, color, visible, addedAt, features}] }
+  byTheatre:    {},     // { [theatre]: [{id, name, color, visible, addedAt, features}] } - filled by hydrate()
+  persistError: null,   // last failed save, shown in the Drawings panel
 
   // features: normalized array from utils/parseGeojson.js. If any feature
   // carries its own simplestyle `stroke` (the file's own authored color),
@@ -250,24 +246,155 @@ export const useAbmDrawingsStore = create((set) => ({
   }),
 }))
 
-// ── Cross-window sync (main window + any future undocked Drawings popup) ───
-let _syncing = false
+// ── Persistence (IndexedDB) + cross-window sync ───────────────────────────
 
-const _ch = new BroadcastChannel('tracs-abm-drawings')
+const drawingKey   = (theatre, id) => `${theatre}|drawing|${id}`
+const isDrawingKey = (key) => key.split('|')[1] === 'drawing'
+
+// Records → { [theatre]: layers[] }, in stored draw order. `order` only
+// exists in the stored record; in memory, array position is the order.
+function groupRecords(rows) {
+  const byTheatre = {}
+  for (const [key, rec] of rows) {
+    if (!rec?.id) continue
+    const theatre = key.split('|')[0]
+    if (!byTheatre[theatre]) byTheatre[theatre] = []
+    byTheatre[theatre].push(rec)
+  }
+  for (const theatre of Object.keys(byTheatre)) {
+    byTheatre[theatre] = byTheatre[theatre]
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      .map((rec) => {
+        const layer = { ...rec }
+        delete layer.order
+        return layer
+      })
+  }
+  return byTheatre
+}
+
+// The record writes that turn `prev` into `next`: a layer is (re)written
+// when it's new, changed (immutable updates give it a new reference) or
+// moved to a different position; layers that disappeared are deleted.
+export function diffDrawingWrites(prev, next) {
+  const puts = []
+  const dels = []
+  for (const theatre of new Set([...Object.keys(prev), ...Object.keys(next)])) {
+    const before = prev[theatre] ?? []
+    const after  = next[theatre] ?? []
+    if (before === after) continue
+    const prevById = new Map(before.map((layer, i) => [layer.id, { layer, i }]))
+    after.forEach((layer, i) => {
+      const was = prevById.get(layer.id)
+      if (!was || was.layer !== layer || was.i !== i) puts.push([drawingKey(theatre, layer.id), { ...layer, order: i }])
+    })
+    const keep = new Set(after.map((layer) => layer.id))
+    for (const layer of before) if (!keep.has(layer.id)) dels.push(drawingKey(theatre, layer.id))
+  }
+  return { puts, dels }
+}
+
+function readLegacy() {
+  try { return typeof localStorage === 'undefined' ? null : localStorage.getItem(LEGACY_KEY) } catch { return null }
+}
+
+// Moves the old single localStorage blob into per-layer records. Only
+// layers IndexedDB doesn't already hold are written (a record already there
+// is the newer copy), and the blob is removed only after every one of them
+// reads back - a failed write leaves it in place to retry next launch.
+// Safe to repeat, so a second window starting at the same moment, or the
+// blob coming back after a downgrade, can't lose or duplicate a drawing (at
+// worst, one deleted in that same instant comes back).
+export async function migrateLegacyDrawings() {
+  const raw = readLegacy()
+  if (raw == null) return
+  let parsed = null
+  try { parsed = JSON.parse(raw) } catch { /* unreadable blob - leave it alone */ }
+  if (!parsed || typeof parsed !== 'object') return
+
+  const entries = []
+  for (const [theatre, layers] of Object.entries(parsed.byTheatre ?? {})) {
+    (layers ?? []).forEach((layer, i) => {
+      if (layer?.id) entries.push([drawingKey(theatre, layer.id), { ...layer, order: i }])
+    })
+  }
+  const existing = await getRecords(entries.map(([key]) => key))
+  const missing  = entries.filter((_, i) => existing[i] === undefined)
+  await putRecords(missing)
+  const check = await getRecords(missing.map(([key]) => key))
+  if (check.some((v) => v === undefined)) throw new Error('ABM drawings migration could not be verified')
+  try { localStorage.removeItem(LEGACY_KEY) } catch { /* nothing more to do */ }
+}
+
+let _hydrated       = false
+let _applyingStored = false
+let _writes         = Promise.resolve()
+
+function applyStored(byTheatre) {
+  _applyingStored = true
+  try { useAbmDrawingsStore.setState({ byTheatre }) } finally { _applyingStored = false }
+}
+
+function reportError(err) {
+  const msg = describeDbError(err)
+  console.error('[abmDrawings] storage error:', msg)
+  useAbmDrawingsStore.setState({ persistError: msg })
+}
 
 useAbmDrawingsStore.subscribe((state, prev) => {
-  if (_syncing || shallowEqual(serialize(state), serialize(prev))) return
-  try { localStorage.setItem(SB_KEY, JSON.stringify(serialize(state))) } catch {}
-  _ch.postMessage({ type: 'STATE_UPDATE', state: serialize(state) })
+  if (!_hydrated || _applyingStored || state.byTheatre === prev.byTheatre) return
+  const { puts, dels } = diffDrawingWrites(prev.byTheatre, state.byTheatre)
+  if (!puts.length && !dels.length) return
+  _writes = _writes
+    .then(async () => {
+      await putRecords(puts)
+      await deleteRecords(dels)
+      if (useAbmDrawingsStore.getState().persistError) useAbmDrawingsStore.setState({ persistError: null })
+    })
+    .catch(reportError)
 })
 
-_ch.onmessage = (e) => {
-  if (e.data?.type === 'STATE_UPDATE') {
-    _syncing = true
-    useAbmDrawingsStore.setState(e.data.state)
-    _syncing = false
-  } else if (e.data?.type === 'REQUEST_STATE') {
-    _ch.postMessage({ type: 'STATE_UPDATE', state: serialize(useAbmDrawingsStore.getState()) })
+// Another window changed drawing records: once our own pending writes have
+// landed, reload each affected theatre's layers.
+onRemoteChange((changedKeys) => {
+  if (!_hydrated) return
+  const theatres = new Set(changedKeys.filter(isDrawingKey).map((key) => key.split('|')[0]))
+  if (!theatres.size) return
+  _writes = _writes
+    .then(async () => {
+      for (const theatre of theatres) {
+        const layers = groupRecords(await loadPrefix(`${theatre}|drawing|`))[theatre] ?? []
+        applyStored({ ...useAbmDrawingsStore.getState().byTheatre, [theatre]: layers })
+      }
+    })
+    .catch(reportError)
+})
+
+async function hydrate() {
+  try {
+    await migrateLegacyDrawings()
+  } catch (err) {
+    reportError(err)   // the localStorage copy stays put; load what IndexedDB has
+  }
+  try {
+    const stored  = groupRecords(await loadWhere(isDrawingKey))
+    const pending = useAbmDrawingsStore.getState().byTheatre
+    applyStored(stored)
+    _hydrated = true
+    // Anything drawn in the moment before loading finished is added on top
+    // (and so persisted by the subscriber).
+    if (Object.values(pending).some((layers) => layers.length)) {
+      const merged = { ...stored }
+      for (const [theatre, layers] of Object.entries(pending)) {
+        const have = new Set((merged[theatre] ?? []).map((l) => l.id))
+        merged[theatre] = [...(merged[theatre] ?? []), ...layers.filter((l) => !have.has(l.id))]
+      }
+      useAbmDrawingsStore.setState({ byTheatre: merged })
+    }
+  } catch (err) {
+    reportError(err)
   }
 }
-_ch.postMessage({ type: 'REQUEST_STATE' })
+
+// Resolves once stored drawings are loaded (or loading failed and was reported).
+export const drawingsReady = hydrate()

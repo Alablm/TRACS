@@ -298,6 +298,18 @@
 }
 .dr-row-delete:hover { color: #CC4444; }
 
+.dr-persist-error {
+  padding: 3px 6px;
+  border-top: 1px solid #3A1A1A;
+  color: #CC4444;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .dr-footer {
   padding: 4px 6px;
   border-top: 1px solid #1A1A1A;

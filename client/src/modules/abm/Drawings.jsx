@@ -179,6 +179,7 @@ export function Drawings({ docked = true, width, onResize, onUndock, onDock, onH
   const renameLayer       = useAbmDrawingsStore(s => s.renameLayer)
   const updateShapeParams = useAbmDrawingsStore(s => s.updateShapeParams)
   const clearTheatre      = useAbmDrawingsStore(s => s.clearTheatre)
+  const persistError      = useAbmDrawingsStore(s => s.persistError)
   const toggleAll         = useAbmDrawingsStore(s => s.toggleAll)
 
   // Same palette AbmScope's drawAbmCustomDrawings call resolves against
@@ -496,6 +497,10 @@ export function Drawings({ docked = true, width, onResize, onUndock, onDock, onH
           )
         })}
       </div>
+
+      {persistError && (
+        <div className="dr-persist-error" title={persistError}>Not saved: {persistError}</div>
+      )}
 
       <div className="dr-footer">
         {confirmingClear ? (
