@@ -24,6 +24,9 @@ import { useGeoStore }         from '../../../store/geo.js'
 import { useFixesStore }       from '../../../store/fixes.js'
 import { useProceduresStore }  from '../../../store/procedures.js'
 import { useNavdataStore }     from '../../../store/navdata.js'
+import { useUserNavdataStore } from '../../../store/userNavdata.js'
+
+const NO_MAPS = []
 
 // ATC ownership/ident state + this position's identity.
 export function useStarsAtcData() {
@@ -61,6 +64,7 @@ export function useStarsNavdataLayers() {
   const maps        = useMapsStore((s) => s.maps)
   const mapPalettes = useMapsStore((s) => s.palettes)
   const mapVisible  = useMapsStore((s) => s.visible)
+  const userMaps    = useUserNavdataStore((s) => s.byTheatre[s.theatre]?.maps ?? NO_MAPS)
 
   const holdings       = useHoldingsStore((s) => s.holdings)
   const holdsVisible   = useHoldingsStore((s) => s.visible)
@@ -92,7 +96,7 @@ export function useStarsNavdataLayers() {
   const filterCenter = useRunwaysStore((s) => s.filterCenter)
 
   return {
-    maps, mapPalettes, mapVisible,
+    maps, mapPalettes, mapVisible, userMaps,
     holdings, holdsVisible, airways, airwaysVisible, msa, msaVisible,
     mora, moraVisible, relief, reliefVisible, mva, mvaVisible,
     geoBoundaries, geoCoastlines, geoVisible, fixes, fixesVisible,

@@ -14,6 +14,7 @@ import { useMvaStore }        from '../../../../store/mva.js'
 import { useGeoStore }        from '../../../../store/geo.js'
 import { useFixesStore }      from '../../../../store/fixes.js'
 import { useProceduresStore } from '../../../../store/procedures.js'
+import { useUserNavdataStore } from '../../../../store/userNavdata.js'
 import { saveStarsPrefs }     from '../../../../store/starsPrefs.js'
 import { useUnitSystem }      from '../../../../store/unitSystem.js'
 import { recenterScope }      from '../../actions/index.js'
@@ -21,6 +22,17 @@ import { useNonPassiveWheel } from '../../../../utils/useNonPassiveWheel.js'
 import { snapshotLayerVisibility, applyLayerVisibility } from '../layerVisibility.js'
 import { WINDOW_ID, MAIN_BUTTONS, AUX_BUTTONS, SUBMENU_DEFS, VALUE_CONFIG, getWindowValue, applyValueDelta, DEFAULT_DCB, MAP_SLOT_KEYS, mapKeyOf } from './dcbMenus.js'
 import '../../dcb.css'
+
+const NO_USER_MAPS = []
+
+// A user map's DCB text across a half button's two lines: kept whole when
+// short, otherwise split at the last space.
+function userMapLines(label) {
+  const text = (label ?? '').trim()
+  const lastSpace = text.lastIndexOf(' ')
+  if (text.length <= 8 || lastSpace < 0) return [text]
+  return [text.slice(0, lastSpace), text.slice(lastSpace + 1)]
+}
 
 function DcbButton({ btn, isActive, isToggled, valStr, colors, half, onClick }) {
   if (btn.type === 'spacer') {
@@ -77,6 +89,7 @@ export function Dcb({ profile, briteDcb, csDcb }) {
   const mapsVisible   = useMapsStore((s) => s.visible)
   const maps          = useMapsStore((s) => s.maps)
   const mvaSlot       = useMapsStore((s) => s.mvaSlot)
+  const userMaps      = useUserNavdataStore((s) => s.byTheatre[s.theatre]?.maps ?? NO_USER_MAPS)
 
   const holdsVisible   = useHoldingsStore((s) => s.visible)
   const airwaysVisible = useAirwaysStore((s) => s.visible)
@@ -129,6 +142,9 @@ export function Dcb({ profile, briteDcb, csDcb }) {
       for (let i = 5; i < maps.length; i++) {
         if (maps[i] != null) halfPool.push({ id: `MAP_OVF_${i}`, mapKey: i, lines: [], type: 'toggle' })
       }
+      for (const m of userMaps) {
+        halfPool.push({ id: `USR_${m.id}`, mapKey: `U:${m.id}`, lines: userMapLines(m.label || m.name), type: 'toggle' })
+      }
       const overflowSlots = []
       for (let i = 0; i < halfPool.length; i += 2) {
         const top = halfPool[i]
@@ -180,7 +196,7 @@ export function Dcb({ profile, briteDcb, csDcb }) {
       return [...staticSlots, ...overflowSlots, ...cltrPairs, ...satSlots, ...procSlots, { id: 'DONE', lines: ['DONE'], type: 'done' }]
     }
     return SUBMENU_DEFS[menuKey]?.buttons ?? MAIN_BUTTONS
-  }, [menuKey, maps, facilityCenterlines, satBuckets, procSidGroups, procStarGroups, procAppchGroups, mvaSlot])
+  }, [menuKey, maps, userMaps, facilityCenterlines, satBuckets, procSidGroups, procStarGroups, procAppchGroups, mvaSlot])
 
   // ── Button click ───────────────────────────────────────────────────
   const handleButtonClick = useCallback((btn) => {
@@ -373,7 +389,7 @@ export function Dcb({ profile, briteDcb, csDcb }) {
     let displayBtn = btn
 
     const mapKey = mapKeyOf(btn)
-    if (mapKey != null) {
+    if (mapKey != null && !String(mapKey).startsWith('U:')) {
       const label = typeof mapKey === 'number' ? (maps[mapKey]?.name ?? '') : 'LBL'
       const lines = label.startsWith('ADJ ') ? ['ADJ', label.slice(4)] : [label]
       displayBtn = { ...btn, lines }
