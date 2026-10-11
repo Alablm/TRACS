@@ -56,7 +56,9 @@ export function useStarsFacilityData() {
   const facilityType    = useSessionStore((s) => s.facilityType)
   const positionSuffix  = useSessionStore((s) => s.positionSuffix)
   const facilityId      = useSessionStore((s) => s.facilityId)
-  return { mission, airbases, facilityDcsName, facilityType, positionSuffix, facilityId }
+  const facilityLat     = useSessionStore((s) => s.facilityLat)
+  const facilityLng     = useSessionStore((s) => s.facilityLng)
+  return { mission, airbases, facilityDcsName, facilityType, positionSuffix, facilityId, facilityLat, facilityLng }
 }
 
 // Navdata/map layer data + their visibility toggles.

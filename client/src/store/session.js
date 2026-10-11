@@ -65,6 +65,8 @@ export const useSessionStore = create((set) => ({
   positionTypeName: '',
   positionSuffix: '',      // raw suffix: 'TWR' | 'APP' | 'DEP' | 'CTR' etc.
   carrierUnitId: null,
+  facilityLat: null,       // CTR only: scope home center (FIR clipped to theatre)
+  facilityLng: null,
 
   // Display preferences
   useDcsNames: localStorage.getItem('tracs.settings.useDcsNames') !== 'false',
@@ -121,8 +123,8 @@ export const useSessionStore = create((set) => ({
   setPosition: ({ mode, name, config = null }) =>
     set({ positionMode: mode, positionName: name, positionConfig: config }),
 
-  setFacility: ({ facilityType, facilityId, facilityDcsName = '', facilityName = '', positionTypeName = '', positionSuffix = '', carrierUnitId = null }) =>
-    set({ facilityType, facilityId, facilityDcsName, facilityName, positionTypeName, positionSuffix, carrierUnitId }),
+  setFacility: ({ facilityType, facilityId, facilityDcsName = '', facilityName = '', positionTypeName = '', positionSuffix = '', carrierUnitId = null, facilityLat = null, facilityLng = null }) =>
+    set({ facilityType, facilityId, facilityDcsName, facilityName, positionTypeName, positionSuffix, carrierUnitId, facilityLat, facilityLng }),
 
   setPositionSet: (val) => set({ positionSet: val, signOnTime: val ? Date.now() : null }),
 
@@ -218,6 +220,8 @@ export const useSessionStore = create((set) => ({
       positionTypeName:    '',
       positionSuffix:      '',
       carrierUnitId:       null,
+      facilityLat:         null,
+      facilityLng:         null,
       activeModule:        null,
       aicCallsign:         '',
       aicUnitId:           null,
@@ -258,6 +262,8 @@ export const useSessionStore = create((set) => ({
       positionTypeName:    '',
       positionSuffix:      '',
       carrierUnitId:       null,
+      facilityLat:         null,
+      facilityLng:         null,
       activeModule:        null,
       aicCallsign:         '',
       aicUnitId:           null,

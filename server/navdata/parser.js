@@ -62,6 +62,8 @@ async function buildCache() {
   const theatresRaw = fs.readFileSync(path.join(CONFIG_DIR, 'theatres.json'), 'utf8')
   const theatres    = JSON.parse(theatresRaw)
   const bboxHash    = crypto.createHash('sha256').update(theatresRaw).digest('hex').slice(0, 16)
+  const firIdentsHash = crypto.createHash('sha256')
+    .update(fs.readFileSync(path.join(CONFIG_DIR, 'fir_idents.json'), 'utf8')).digest('hex').slice(0, 16)
   const lnmStat     = fs.statSync(LNM_DB_PATH)
   const lnmMtime    = lnmStat.mtime.toISOString()
   const lnmSize     = lnmStat.size
@@ -71,7 +73,7 @@ async function buildCache() {
   if (fs.existsSync(manifestPath)) {
     try {
       const m = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
-      if (m.lnmMtime === lnmMtime && m.lnmSize === lnmSize && m.bboxHash === bboxHash) {
+      if (m.lnmMtime === lnmMtime && m.lnmSize === lnmSize && m.bboxHash === bboxHash && m.firIdentsHash === firIdentsHash) {
         const allPresent = Object.values(theatres).every((tConf) =>
           REQUIRED_THEATRE_FILES.every((f) => fs.existsSync(path.join(CACHE_DIR, tConf.folder, f)))
         )
@@ -81,7 +83,7 @@ async function buildCache() {
         }
         reason = 'cache incomplete'
       } else {
-        reason = 'LNM database changed'
+        reason = 'LNM database or navdata config changed'
       }
     } catch {
       reason = 'manifest corrupt'

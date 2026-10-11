@@ -20,12 +20,9 @@ const CACHE_DIR          = process.env.TRACS_NAVDATA_CACHE_DIR
   ? path.resolve(process.env.TRACS_NAVDATA_CACHE_DIR)
   : path.join(NAVDATA_DIR, 'cache')
 const ICAO_MAPPING_PATH  = path.join(PROJECT_DIR, 'client', 'public', 'icaoMapping.json')
+const FIR_IDENTS_PATH    = path.join(CONFIG_DIR, 'fir_idents.json')
 
 // ── Geometry helpers ──────────────────────────────────────────────────────────
-
-function inBbox([minLon, minLat, maxLon, maxLat], lon, lat) {
-  return lon >= minLon && lon <= maxLon && lat >= minLat && lat <= maxLat
-}
 
 function polygonBbox(coords) {
   let minLon = Infinity, minLat = Infinity, maxLon = -Infinity, maxLat = -Infinity
@@ -195,12 +192,18 @@ function extractNavaids(db, [minLon, minLat, maxLon, maxLat]) {
 // ── Extractor: airspace ───────────────────────────────────────────────────────
 
 function extractAirspace(db, [minLon, minLat, maxLon, maxLat]) {
+  // LNM stores antimeridian-crossing boundaries with min_lonx > max_lonx
+  // (Oakland Oceanic: 130 .. -120); their lon range is [min,180] U [-180,max].
   const rows = queryAll(db,
-    `SELECT boundary_id, type, name, min_altitude, max_altitude, min_altitude_type, max_altitude_type, geometry
+    `SELECT boundary_id, type, name, min_altitude, max_altitude, min_altitude_type, max_altitude_type, geometry,
+            min_lonx > max_lonx AS wraps
      FROM boundary
-     WHERE min_lonx < ? AND max_lonx > ? AND min_laty < ? AND max_laty > ?`,
-    [maxLon, minLon, maxLat, minLat],
+     WHERE ((min_lonx <= max_lonx AND min_lonx < ? AND max_lonx > ?)
+         OR (min_lonx >  max_lonx AND (min_lonx < ? OR max_lonx > ?)))
+       AND min_laty < ? AND max_laty > ?`,
+    [maxLon, minLon, maxLon, minLon, maxLat, minLat],
   )
+  const theatreLon = (minLon + maxLon) / 2
 
   const features = []
   for (const r of rows) {
@@ -208,6 +211,9 @@ function extractAirspace(db, [minLon, minLat, maxLon, maxLat]) {
     let coords
     try { coords = decodeGeometry(r.geometry) } catch { continue }
     if (coords.length < 3) continue
+    // The ring is split along +/-180; shift every vertex to within 180 deg of
+    // the theatre so the projection sees one continuous polygon.
+    if (r.wraps) coords = coords.map(([lon, lat]) => [lon + 360 * Math.round((theatreLon - lon) / 360), lat])
 
     const cat      = toDisplayCategory(r.type)
     const altLabel = makeAltLabel(cat, r.type, r.min_altitude, r.max_altitude, r.min_altitude_type, r.max_altitude_type)
@@ -564,6 +570,81 @@ function extractProceduresForAirport(db, airportId) {
   return out
 }
 
+// ── Extractor: centers (FIR/UIR boundaries + idents) ──────────────────────────
+
+// LNM boundaries carry no FIR ident, so idents come from config/fir_idents.json
+// ("FIR|TBILISI" -> "UGGG"). Several boundaries can share one ident when
+// smaller FIRs fall under a parent ACC (MURMANSK, ARKHANGELSK -> ULLL).
+function extractCenterBoundaries(db, firIdents) {
+  const rows = queryAll(db,
+    `SELECT type, name, com_frequency, min_lonx, min_laty, max_lonx, max_laty
+     FROM boundary WHERE type IN ('FIR', 'UIR')`,
+  )
+  const out = []
+  for (const r of rows) {
+    const ident = firIdents[`${r.type}|${r.name}`]
+    if (!ident) continue
+    // LNM's bbox columns mark antimeridian-crossing boundaries with
+    // min_lonx > max_lonx (Oakland Oceanic: 130 .. -120); unwrap to a
+    // continuous range (130 .. 240) so overlap and centering stay simple.
+    const maxLon = r.min_lonx > r.max_lonx ? r.max_lonx + 360 : r.max_lonx
+    const bbox   = [r.min_lonx, r.min_laty, maxLon, r.max_laty]
+    out.push({
+      ident,
+      type: r.type,
+      name: r.name,
+      freq: r.com_frequency ? +(r.com_frequency / 1_000).toFixed(3) : null,
+      bbox,
+    })
+  }
+  return out
+}
+
+// One entry per ident whose boundaries overlap the theatre. The name and the
+// frequency order favour FIR over UIR rows, then the part of the FIR that is
+// actually inside the theatre; the center is the middle of the FIR's bbox
+// clipped to the theatre bbox, so a large ACC (ULLL over Kola) centers on the
+// theatre rather than on the far end of the FIR.
+function buildTheatreCenters(boundaries, theatreBbox) {
+  // Unwrapped FIR bboxes can run past 180, so also try the theatre one turn east.
+  const [tMinLon, tMinLat, tMaxLon, tMaxLat] = theatreBbox
+  const frames = [[tMinLon, tMaxLon], [tMinLon + 360, tMaxLon + 360]]
+  const byIdent = new Map()
+  for (const b of boundaries) {
+    const [minLon, minLat, maxLon, maxLat] = b.bbox
+    let clip = null
+    for (const [fMin, fMax] of frames) {
+      const c = [Math.max(minLon, fMin), Math.max(minLat, tMinLat), Math.min(maxLon, fMax), Math.min(maxLat, tMaxLat)]
+      if (c[0] < c[2] && c[1] < c[3]) { clip = c; break }
+    }
+    if (!clip) continue
+    const overlap = (clip[2] - clip[0]) * (clip[3] - clip[1])
+    if (!byIdent.has(b.ident)) byIdent.set(b.ident, [])
+    byIdent.get(b.ident).push({ ...b, clip, overlap })
+  }
+
+  const centers = []
+  for (const [ident, parts] of byIdent) {
+    parts.sort((a, b) => (a.type === 'FIR' ? 0 : 1) - (b.type === 'FIR' ? 0 : 1) || b.overlap - a.overlap)
+    const freqs = [...new Set(parts.map(p => p.freq).filter(f => f != null))]
+    if (freqs.length === 0) continue
+    const firParts = parts.filter(p => p.type === 'FIR')
+    const area     = firParts.length ? firParts : parts
+    const clip = [
+      Math.min(...area.map(p => p.clip[0])), Math.min(...area.map(p => p.clip[1])),
+      Math.max(...area.map(p => p.clip[2])), Math.max(...area.map(p => p.clip[3])),
+    ]
+    centers.push({
+      facilityId: ident,
+      name:       parts[0].name,
+      freqs,
+      lat:        +((clip[1] + clip[3]) / 2).toFixed(6),
+      lon:        +((((clip[0] + clip[2]) / 2 + 540) % 360) - 180).toFixed(6),
+    })
+  }
+  return centers.sort((a, b) => a.facilityId.localeCompare(b.facilityId))
+}
+
 // ── Extractor: sectors (com + boundary matching) ──────────────────────────────
 
 function extractSectors(db, allIcaos) {
@@ -665,6 +746,8 @@ async function runExtract(lnmDbPath) {
   const theatres    = JSON.parse(theatresRaw)
   const icaoMapping = JSON.parse(fs.readFileSync(ICAO_MAPPING_PATH, 'utf8'))
   const bboxHash     = crypto.createHash('sha256').update(theatresRaw).digest('hex').slice(0, 16)
+  const firIdentsRaw = fs.readFileSync(FIR_IDENTS_PATH, 'utf8')
+  const firIdentsHash = crypto.createHash('sha256').update(firIdentsRaw).digest('hex').slice(0, 16)
   const lnmStat      = fs.statSync(lnmDbPath)
   const lnmMtime     = lnmStat.mtime.toISOString()
   const lnmSize      = lnmStat.size
@@ -744,13 +827,11 @@ async function runExtract(lnmDbPath) {
   const sectors = extractSectors(db, allIcaos)
   console.log(`[extract] ${Object.keys(sectors).length} sectors`)
 
-  // ctrs.json per theatre: airports in bbox with at least one ctr frequency
+  // ctrs.json per theatre: FIR/UIR centers overlapping the theatre bbox
+  const centerBoundaries = extractCenterBoundaries(db, JSON.parse(firIdentsRaw))
   for (const [_tName, tConf] of Object.entries(theatres)) {
     const folder = path.join(CACHE_DIR, tConf.folder)
-    const ctrs = Object.entries(sectors)
-      .filter(([, e]) => (e.freqs?.ctr?.length ?? 0) > 0 && inBbox(tConf.bbox, e.lon, e.lat))
-      .map(([icao, e]) => ({ facilityId: icao, name: e.name, freqs: e.freqs.ctr }))
-      .sort((a, b) => a.facilityId.localeCompare(b.facilityId))
+    const ctrs = buildTheatreCenters(centerBoundaries, tConf.bbox)
     await fsp.writeFile(path.join(folder, 'ctrs.json'), JSON.stringify(ctrs))
   }
 
@@ -762,6 +843,7 @@ async function runExtract(lnmDbPath) {
     lnmMtime,
     lnmSize,
     bboxHash,
+    firIdentsHash,
     builtAt:         new Date().toISOString(),
     proceduresBuilt: true,
   }

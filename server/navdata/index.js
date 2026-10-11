@@ -52,7 +52,7 @@ function theatreTacviewRealUtcOffset(theatre) {
 }
 
 // bbox format [minLon, minLat, maxLon, maxLat], same convention as
-// extract-navdata.js's inBbox and the other build scripts that duplicate it.
+// extract-navdata.js and the other build scripts.
 // Returns every theatre whose bbox contains the point — usually one, more in
 // an overlap zone (Syria/Sinai/Iraq, PersianGulf/Iraq/Afghanistan). Used by
 // tacview.js's majority-vote theatre detection.

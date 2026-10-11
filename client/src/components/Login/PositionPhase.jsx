@@ -304,8 +304,20 @@ export function PositionPhase({ onSignedIn }) {
     setFacilityId('')
   }, [isCtr])
 
+  // CTR: the center list entry already carries its frequencies
+  const ctrEntry = isCtr ? (ctrList.find((c) => c.facilityId === facilityId) ?? null) : null
+  useEffect(() => {
+    if (!ctrEntry) return
+    const raw = ctrEntry.freqs?.[0]
+    if (!raw) { setSuggestedFreq(null); return }
+    const formatted = parseFloat(raw).toFixed(3)
+    setSuggestedFreq(formatted)
+    setFrequency(formatted)
+  }, [ctrEntry])
+
   // Fetch frequency suggestion from navdata when facilityId + suffix are usable
   useEffect(() => {
+    if (ctrEntry) return
     const role     = SUFFIX_TO_NAVDATA_ROLE[suffix?.toUpperCase()]
     const carrier  = airbaseList.find((ab) => ab.name === selectedBase)?.isCarrier ?? false
     if (selectedModule !== MODULE.ATC || !facilityId || carrier || !role) {
@@ -327,7 +339,7 @@ export function PositionPhase({ onSignedIn }) {
       .catch((err) => { if (err?.name === 'AbortError') return; console.warn('[navdata] freq lookup failed', err); setSuggestedFreq(null) })
 
     return () => ac.abort()
-  }, [facilityId, suffix, selectedModule, selectedBase, airbaseList])
+  }, [facilityId, suffix, selectedModule, selectedBase, airbaseList, ctrEntry])
 
   // Fetch CTR facility list for the current theatre when CTR is selected
   useEffect(() => {
@@ -445,6 +457,8 @@ export function PositionPhase({ onSignedIn }) {
         positionTypeName: typeDef?.displayName ?? suffix,
         positionSuffix:   positionSuffix,
         carrierUnitId:    isCarrier ? selectedEntry.unitId : null,
+        facilityLat:      ctrEntry?.lat ?? null,
+        facilityLng:      ctrEntry?.lon ?? null,
       })
       registerPendingController(atcPositionName, {
         facility:  facilityId.toUpperCase(),

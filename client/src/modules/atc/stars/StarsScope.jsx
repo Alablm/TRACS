@@ -88,6 +88,7 @@ export default function StarsScope() {
   } = useStarsAtcData()
   const {
     mission, airbases, facilityDcsName, facilityType, positionSuffix, facilityId,
+    facilityLat, facilityLng,
   } = useStarsFacilityData()
   const {
     maps, mapPalettes, mapVisible, userMaps,
@@ -417,8 +418,25 @@ export default function StarsScope() {
   // remount) rather than a component ref, so a genuine facility change still
   // triggers a re-center but a bare remount doesn't clobber a live pan.
   useEffect(() => {
-    // FIR/CTR has no single center point — skip auto-center, let controller pan
-    if (!windowSettings || facilityType === 'fir') return
+    if (!windowSettings) return
+
+    // CTR: center on the FIR (clipped to the theatre) from the center list.
+    // Older navdata caches carry no position - leave the scope where it is.
+    if (facilityType === 'fir') {
+      if (!facilityId || facilityLat == null || facilityLng == null) return
+      const key = `fir:${facilityId}`
+      if (windowSettings.autoCenteredFacility === key) return
+      displayStore.updateWindow(WINDOW_ID, {
+        centerLat:     facilityLat,
+        centerLng:     facilityLng,
+        homeCenterLat: facilityLat,
+        homeCenterLng: facilityLng,
+        offCntr:       false,
+        autoCenteredFacility: key,
+      })
+      return
+    }
+
     if (!facilityDcsName) return
     if (windowSettings.autoCenteredFacility === facilityDcsName) return
 
@@ -446,7 +464,7 @@ export default function StarsScope() {
       offCntr:       false,
       autoCenteredFacility: facilityDcsName,
     })
-  }, [airbases, facilityDcsName, centerlines, windowSettings, displayStore, facilityType])
+  }, [airbases, facilityDcsName, centerlines, windowSettings, displayStore, facilityType, facilityId, facilityLat, facilityLng])
 
   // ── History capture — see useHistoryCapture.js ────────────────────
   const historyRef = useHistoryCapture(visibleUnitsRef, windowSettings?.historyRate)
