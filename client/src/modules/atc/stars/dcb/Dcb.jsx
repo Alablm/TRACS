@@ -109,6 +109,8 @@ export function Dcb({ profile, briteDcb, csDcb }) {
   const cltrVisible     = useRunwaysStore((s) => s.cltrVisible)
   const satBuckets      = useRunwaysStore((s) => s.satBuckets)
   const facilityAirbase = useRunwaysStore((s) => s.facilityAirbase)
+  const allRwysVisible  = useRunwaysStore((s) => s.allRwysVisible)
+  const allCltrVisible  = useRunwaysStore((s) => s.allCltrVisible)
 
   const facilityCenterlines = useMemo(
     () => facilityAirbase ? centerlines.filter((c) => c.airbase === facilityAirbase) : [],
@@ -162,6 +164,15 @@ export function Dcb({ profile, briteDcb, csDcb }) {
         cltrPairs.push({ id: `slot_cltr_${i}`, slotType: 'halfV', buttons: bot ? [top, bot] : [top] })
       }
 
+      // No facility airbase (CTR): theatre-wide runway pavement / centerline toggles
+      const allRwySlots = facilityAirbase ? [] : [{
+        id: 'slot_allrwy', slotType: 'halfV',
+        buttons: [
+          { id: 'RWYS_ALL', lines: ['RWYS'],   type: 'toggle' },
+          { id: 'ALLCL',    lines: ['RWY CL'], type: 'toggle' },
+        ],
+      }]
+
       // One halfV slot for satellite flow buckets (SAT NW / SAT SE)
       const satSlots = []
       if (satBuckets.length > 0) {
@@ -193,10 +204,10 @@ export function Dcb({ profile, briteDcb, csDcb }) {
         procSlots.push({ id: `_proc_hv_${i}`, slotType: 'halfV', buttons: bot ? [top, bot] : [top] })
       }
 
-      return [...staticSlots, ...overflowSlots, ...cltrPairs, ...satSlots, ...procSlots, { id: 'DONE', lines: ['DONE'], type: 'done' }]
+      return [...staticSlots, ...overflowSlots, ...cltrPairs, ...allRwySlots, ...satSlots, ...procSlots, { id: 'DONE', lines: ['DONE'], type: 'done' }]
     }
     return SUBMENU_DEFS[menuKey]?.buttons ?? MAIN_BUTTONS
-  }, [menuKey, maps, userMaps, facilityCenterlines, satBuckets, procSidGroups, procStarGroups, procAppchGroups, mvaSlot])
+  }, [menuKey, maps, userMaps, facilityAirbase, facilityCenterlines, satBuckets, procSidGroups, procStarGroups, procAppchGroups, mvaSlot])
 
   // ── Button click ───────────────────────────────────────────────────
   const handleButtonClick = useCallback((btn) => {
@@ -246,6 +257,10 @@ export function Dcb({ profile, briteDcb, csDcb }) {
           useAirwaysStore.getState().toggleVisible('J')
         } else if (btn.id === 'AIR_B') {
           useAirwaysStore.getState().toggleVisible('B')
+        } else if (btn.id === 'RWYS_ALL') {
+          useRunwaysStore.getState().toggleAllRwys()
+        } else if (btn.id === 'ALLCL') {
+          useRunwaysStore.getState().toggleAllCltr()
         } else if (btn.id.startsWith('CLTR_')) {
           useRunwaysStore.getState().toggleCenterline(btn.id.slice(5))
         } else if (btn.id.startsWith('SAT_')) {
@@ -424,7 +439,11 @@ export function Dcb({ profile, briteDcb, csDcb }) {
                 ? airwaysVisible.J
                 : btn.id === 'AIR_B'
                   ? airwaysVisible.B
-                  : btn.id.startsWith('CLTR_')
+                  : btn.id === 'RWYS_ALL'
+          ? allRwysVisible
+          : btn.id === 'ALLCL'
+          ? allCltrVisible
+          : btn.id.startsWith('CLTR_')
           ? (cltrVisible[btn.id.slice(5)] ?? false)
           : btn.id.startsWith('SAT_')
             ? (() => {

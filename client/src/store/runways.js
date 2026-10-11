@@ -93,6 +93,10 @@ export const useRunwaysStore = create((set, get) => ({
   // { id, label, thresholdLat, thresholdLng, headingRad, rwyEnd1, rwyEnd2 }
   centerlines:      [],
   cltrVisible:      {},
+  // CTR-only DCB MAPS toggles: pavement / extended centerlines for every
+  // runway in the theatre, independent of the per-centerline cltrVisible.
+  allRwysVisible:   false,
+  allCltrVisible:   false,
   satBuckets:       [],   // [{ label: 'NW', ids: [...] }, { label: 'SE', ids: [...] }]
   airportPositions: {},   // ICAO → {lat, lon} — all theatre airports, no distance filter
   airbasePositions: [],   // [{lat, lon}] — every airbase with runway coords, ICAO or not
@@ -349,7 +353,8 @@ export const useRunwaysStore = create((set, get) => ({
 
       const filterCenter = hasPos ? { lat: facilityLat, lng: facilityLng, radiusNm: threshold } : null
 
-      set({ centerlines, cltrVisible, satBuckets, theatre, facilityAirbase: facilityAirbase || null, airportPositions, airbasePositions, filterCenter, _lastLoadKey: loadKey })
+      const allVisible = isNewTheatre ? { allRwysVisible: false, allCltrVisible: false } : {}
+      set({ centerlines, cltrVisible, ...allVisible, satBuckets, theatre, facilityAirbase: facilityAirbase || null, airportPositions, airbasePositions, filterCenter, _lastLoadKey: loadKey })
       log.info(`[runways] ${theatre}: ${centerlines.length} centerlines, ${satBuckets.map(b => `${b.label}:${b.ids.length}`).join(' ')} sat`)
     } catch (err) {
       console.error('[runways] load error:', err.message)
@@ -357,6 +362,9 @@ export const useRunwaysStore = create((set, get) => ({
   },
 
   toggleCenterline: (id) => set((s) => ({ cltrVisible: { ...s.cltrVisible, [id]: !s.cltrVisible[id] } })),
+
+  toggleAllRwys: () => set((s) => ({ allRwysVisible: !s.allRwysVisible })),
+  toggleAllCltr: () => set((s) => ({ allCltrVisible: !s.allCltrVisible })),
 
   toggleSatBucket: (label) => set((s) => {
     const bucket = s.satBuckets.find((b) => b.label === label)
@@ -367,5 +375,5 @@ export const useRunwaysStore = create((set, get) => ({
     return { cltrVisible: { ...s.cltrVisible, ...updates } }
   }),
 
-  reset: () => set({ centerlines: [], cltrVisible: {}, satBuckets: [], theatre: null, facilityAirbase: null, airportPositions: {}, airbasePositions: [], filterCenter: null }),
+  reset: () => set({ centerlines: [], cltrVisible: {}, allRwysVisible: false, allCltrVisible: false, satBuckets: [], theatre: null, facilityAirbase: null, airportPositions: {}, airbasePositions: [], filterCenter: null }),
 }))

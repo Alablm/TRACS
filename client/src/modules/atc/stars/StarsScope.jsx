@@ -96,7 +96,7 @@ export default function StarsScope() {
     mora, moraVisible, relief, reliefVisible, mva, mvaVisible,
     geoBoundaries, geoCoastlines, geoVisible, fixes, fixesVisible,
     procRaw, procSidGroups, procStarGroups, procAppchGroups, procVisible, procCommandVisible,
-    centerlines, cltrVisible, filterCenter,
+    centerlines, cltrVisible, allRwysVisible, allCltrVisible, filterCenter,
   } = useStarsNavdataLayers()
 
   const displayStore   = useDisplayStore()
@@ -502,7 +502,7 @@ export default function StarsScope() {
       windowSettings?.fillVisible ? (windowSettings?.fillPct ?? 30) : 0)
     drawUserMaps(ctx, view, userMaps, mapVisible, windowSettings?.briteMapA ?? 50, briteB, csMap, activeColors,
       windowSettings?.fillVisible ? (windowSettings?.fillPct ?? 30) : 0)
-    drawExtendedCenterlines(ctx, view, centerlines, cltrVisible, briteB)
+    drawExtendedCenterlines(ctx, view, centerlines, cltrVisible, briteB, { allRwys: allRwysVisible, allCltr: allCltrVisible })
     drawHoldings(ctx, view, holdings, holdsVisible, briteB, csMap, activeColors)
     drawAirways(ctx, view, airways, airwaysVisible, briteB, activeColors, mapVisible.lbl, csMap)
     drawMsa(ctx, view, msa.filter(r => r.ident === facilityId), msaVisible, briteB, csMap, activeColors)
@@ -518,7 +518,7 @@ export default function StarsScope() {
     const pinnedIds  = new Set(windowSettings?.pinnedFixes?.[theatre] ?? [])
     const fixesToDraw = fixesVisible ? fixes : fixes.filter((f) => pinnedIds.has(f.id.toUpperCase()))
     drawAbmFixSymbols(ctx, view, fixesToDraw, fixesToDraw.length > 0, '#66CCFF', 60, mapVisible.lbl)
-  }, [view, maps, mapPalettes, mapVisible, userMaps, centerlines, cltrVisible, tdmMode, nearbySurfaces,
+  }, [view, maps, mapPalettes, mapVisible, userMaps, centerlines, cltrVisible, allRwysVisible, allCltrVisible, tdmMode, nearbySurfaces,
       holdings, holdsVisible, airways, airwaysVisible, msa, msaVisible, mora, moraVisible, relief, reliefVisible, geoBoundaries, geoCoastlines, geoVisible, mva, mvaVisible, facilityId,
       procRaw, procSidGroups, procStarGroups, procAppchGroups, procVisible, procCommandVisible,
       fixes, fixesVisible, windowSettings?.pinnedFixes, theatre,

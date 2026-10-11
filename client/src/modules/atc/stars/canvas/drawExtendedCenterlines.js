@@ -5,7 +5,10 @@ const START_NM = 1   // first dash begins 1 NM from threshold
 const DASH_NM  = 1
 const GAP_NM   = 1
 
-export function drawExtendedCenterlines(ctx, view, centerlines, cltrVisible, brite = 50) {
+// cltrVisible[id] draws a centerline's pavement and dashes together (facility
+// CLTR buttons); allRwys / allCltr are the CTR-only theatre-wide toggles for
+// pavement and dashes separately.
+export function drawExtendedCenterlines(ctx, view, centerlines, cltrVisible, brite = 50, { allRwys = false, allCltr = false } = {}) {
   if (!centerlines.length || brite <= 0) return
 
   const alpha    = Math.max(0, Math.min(1, brite / 100))
@@ -17,7 +20,10 @@ export function drawExtendedCenterlines(ctx, view, centerlines, cltrVisible, bri
   ctx.lineCap   = 'butt'
 
   for (const cl of centerlines) {
-    if (!cltrVisible[cl.id]) continue
+    const own      = !!cltrVisible[cl.id]
+    const pavement = own || allRwys
+    const dashes   = own || allCltr
+    if (!pavement && !dashes) continue
 
     // ── Runway pavement ───────────────────────────────────────────────
     ctx.strokeStyle = `rgba(192,192,192,${alphaRwy})`
@@ -26,7 +32,7 @@ export function drawExtendedCenterlines(ctx, view, centerlines, cltrVisible, bri
     const rwyOffscreen =
       (rp1.x < -50 && rp2.x < -50) || (rp1.x > width + 50 && rp2.x > width + 50) ||
       (rp1.y < -50 && rp2.y < -50) || (rp1.y > height + 50 && rp2.y > height + 50)
-    if (!rwyOffscreen) {
+    if (pavement && !rwyOffscreen) {
       ctx.beginPath()
       ctx.moveTo(rp1.x, rp1.y)
       ctx.lineTo(rp2.x, rp2.y)
@@ -34,6 +40,7 @@ export function drawExtendedCenterlines(ctx, view, centerlines, cltrVisible, bri
     }
 
     // ── Extended centerline dashes ────────────────────────────────────
+    if (!dashes) continue
     ctx.strokeStyle = `rgba(96,96,96,${alpha})`
     const cosLat = Math.cos(cl.thresholdLat * Math.PI / 180)
     const sinH   = Math.sin(cl.headingRad)
