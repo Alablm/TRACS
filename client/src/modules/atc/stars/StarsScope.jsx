@@ -1148,7 +1148,7 @@ export default function StarsScope() {
     const dir = wheelDir(e)
     if (dir === null) return
     const step     = e.ctrlKey ? 3 : 1
-    const newRange = Math.max(6, Math.min(256, windowSettings.rangeNm + dir * step))
+    const newRange = Math.max(1, Math.min(256, windowSettings.rangeNm + dir * step))
     displayStore.updateWindow(WINDOW_ID, { rangeNm: newRange })
   }, [windowSettings, displayStore, wheelDir])
 

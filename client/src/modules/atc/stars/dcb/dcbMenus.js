@@ -190,7 +190,7 @@ export const SUBMENU_DEFS = {
 // the ATC display unit (NM or km).
 export const VALUE_CONFIG = {
   VOL:           { min: 1,   max: 10,  step: 1,   dir: -1, fmt: v => String(v)                  },
-  RANGE:         { min: 6,   max: 256, step: 1,   dir:  1, fmt: (v, sys) => String(Math.round(distFromNm(v, sys))) },
+  RANGE:         { min: 1,   max: 256, step: 1,   dir:  1, fmt: (v, sys) => String(Math.round(distFromNm(v, sys))) },
   RR:            { min: 0,   max: 3,   step: 1,   dir: -1, fmt: (v, sys) => String(Math.round(distFromNm(RR_VALUES[v] ?? 10, sys))) },
   LDR_DIR:       { min: 0,   max: 7,   step: 1,   dir: -1, fmt: v => LDR_DIR_SEQUENCE[v] ?? 'NE' },
   LDR_LEN:       { min: 0,   max: 7,   step: 1,   dir: -1, fmt: v => String(v)                  },

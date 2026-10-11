@@ -850,7 +850,7 @@ export function SET_ALT_FILTER_ASSOC({ captures }) {
 // RG <n> is typed in the ATC display unit (NM or km), stored as whole NM.
 export function SET_RANGE({ captures }) {
   const range = Math.round(distToNm(parseInt(captures.range, 10), getUnitSystem('atc')))
-  if (range < 6 || range > 256) return err('INVALID RANGE')
+  if (range < 1 || range > 256) return err('INVALID RANGE')
   getDisplay().updateWindow(WINDOW_ID, { rangeNm: range })
   ok()
 }
