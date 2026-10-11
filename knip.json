@@ -4,8 +4,7 @@
   "workspaces": {
     ".": {
       "entry": [
-        "electron/preload.js",
-        "electron/scripts/flip-fuses.js"
+        "electron/preload.js"
       ]
     },
     "client": {
