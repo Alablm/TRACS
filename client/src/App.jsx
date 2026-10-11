@@ -29,6 +29,7 @@ import { setProjectionParams } from './utils/magvar'
 import { resumeAudioContext } from './audio/audioEngine'
 import { useLnmStore, lnmPromptDismissed } from './store/lnm.js'
 import { LnmSetupDialog } from './components/LnmSetup/LnmSetupDialog'
+import { UserNavdataManager } from './components/UserNavdataManager/UserNavdataManager'
 import { RightTabStrip } from './components/RightTabStrip'
 import { AssociationOwner } from './components/AssociationOwner'
 
@@ -103,6 +104,8 @@ export function App() {
 
   const [confirmingReset, setConfirmingReset] = useState(false)
   const [settingsOpen,    setSettingsOpen]    = useState(false)
+  const [userNavOpen,     setUserNavOpen]     = useState(false)
+  const missionTheatre = useSessionStore((s) => s.mission?.mission?.theatre ?? null)
   const [tracsVersion,    setTracsVersion]    = useState(null)
   const [relaySnapshot,   setRelaySnapshot]   = useState({ version: null, protocolVersion: null })
   const isElectron = typeof window !== 'undefined' && !!window.electronAPI
@@ -503,6 +506,7 @@ export function App() {
     <AssociationOwner />
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: activeProfile?.visual.colors.background ?? '#1A1A1A', overflow: 'hidden' }}>
       {lnmDialogEl}
+      {userNavOpen && <UserNavdataManager theatre={missionTheatre} onClose={() => setUserNavOpen(false)} />}
 
       {updateBannerEl}
 
@@ -763,6 +767,16 @@ export function App() {
                   Change…
                 </button>
               )}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#888', fontSize: '0.7rem' }}>
+              <span style={{ flex: 1 }}>User fixes &amp; video maps</span>
+              <button
+                onClick={() => { setSettingsOpen(false); setUserNavOpen(true) }}
+                style={{ background: 'transparent', border: '1px solid #444', borderRadius: '3px', color: '#888', cursor: 'pointer', fontSize: '0.65rem', padding: '1px 8px' }}
+              >
+                Manage…
+              </button>
             </div>
 
             <div style={{ borderTop: '1px solid #2a2a2a', paddingTop: '8px', fontSize: '0.65rem', color: '#888' }}>

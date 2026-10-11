@@ -1,13 +1,21 @@
-import { create }          from 'zustand'
-import { useRunwaysStore }  from './runways.js'
+import { create }               from 'zustand'
+import { useRunwaysStore }       from './runways.js'
+import { useUserNavdataStore }   from './userNavdata.js'
+import { mergeFixes }            from '../utils/userFixes.js'
+
+function userFixesFor(theatre) {
+  return useUserNavdataStore.getState().byTheatre[theatre]?.fixes ?? []
+}
 
 export const useNavdataStore = create((set, get) => ({
-  fixes:   [],
-  navaids: [],
-  theatre: null,
+  baseFixes: [],   // this theatre's navdata fixes, as served
+  fixes:     [],   // baseFixes with the user's own fixes layered on top
+  navaids:   [],
+  theatre:   null,
 
   loadForTheatre: async (theatre) => {
     if (!theatre || get().theatre === theatre) return
+    useUserNavdataStore.getState().setActiveTheatre(theatre)
     try {
       const [fixRes, navRes] = await Promise.all([
         fetch(`/api/navdata/fixes?theatre=${encodeURIComponent(theatre)}`),
@@ -15,7 +23,7 @@ export const useNavdataStore = create((set, get) => ({
       ])
       const fixes   = fixRes.ok ? await fixRes.json()  : []
       const navaids = navRes.ok ? await navRes.json()  : []
-      set({ fixes, navaids, theatre })
+      set({ baseFixes: fixes, fixes: mergeFixes(userFixesFor(theatre), fixes), navaids, theatre })
     } catch {
       // navdata may not be ready (503) — silently skip
     }
@@ -52,3 +60,13 @@ export const useNavdataStore = create((set, get) => ({
     return null
   },
 }))
+
+// Re-merge whenever this theatre's user fixes change (load, edit, import,
+// or another window's edit).
+useUserNavdataStore.subscribe((state, prev) => {
+  const { theatre, baseFixes } = useNavdataStore.getState()
+  if (!theatre) return
+  const next = state.byTheatre[theatre]?.fixes
+  if (next === prev.byTheatre[theatre]?.fixes) return
+  useNavdataStore.setState({ fixes: mergeFixes(next ?? [], baseFixes) })
+})

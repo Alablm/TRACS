@@ -137,7 +137,12 @@ function handleStatus(req, res) {
 // beyond a bbox majority vote, and that vote can never disambiguate MarianaIslands/MarianaIslandsWWII, whose
 // bboxes are identical.
 function handleTheatres(req, res) {
-  res.json({ theatres: Object.keys(loadTheatres()) })
+  const theatres = loadTheatres()
+  const bboxes = {}
+  for (const [name, conf] of Object.entries(theatres)) {
+    if (Array.isArray(conf.bbox)) bboxes[name] = conf.bbox
+  }
+  res.json({ theatres: Object.keys(theatres), bboxes })
 }
 
 function handleAirspace(req, res) {

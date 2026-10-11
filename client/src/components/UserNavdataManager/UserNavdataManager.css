@@ -1,0 +1,330 @@
+.unm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9000;
+}
+
+.unm-modal {
+  background: #0A0A0A;
+  border: 1px solid #333;
+  font-family: 'Roboto Mono', monospace;
+  font-size: 10px;
+  color: #CCC;
+  display: flex;
+  flex-direction: column;
+  width: 640px;
+  max-width: calc(100vw - 32px);
+  height: 70vh;
+  max-height: 80vh;
+}
+
+/* ── Header + tabs ──────────────────────────────────────── */
+.unm-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px 4px;
+  border-bottom: 1px solid #222;
+}
+
+.unm-title {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: #888;
+}
+
+.unm-close {
+  background: transparent;
+  border: none;
+  color: #555;
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+}
+.unm-close:hover { color: #CC4444; }
+
+.unm-tabs {
+  display: flex;
+  border-bottom: 1px solid #222;
+}
+
+.unm-tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #666;
+  font-family: inherit;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+.unm-tab:hover { color: #AAA; }
+.unm-tab.active { color: #FFD700; border-bottom-color: #FFD700; }
+
+/* ── Shared bits ────────────────────────────────────────── */
+.unm-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.unm-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid #181818;
+}
+
+.unm-spacer { flex: 1; }
+.unm-grow { flex: 1; min-width: 0; }
+.unm-muted { color: #666; }
+
+.unm-list {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.unm-input {
+  background: #111;
+  border: 1px solid #333;
+  color: #FFD700;
+  font-family: inherit;
+  font-size: 10px;
+  padding: 2px 5px;
+  box-sizing: border-box;
+  min-width: 0;
+}
+.unm-input:disabled { color: #666; border-color: #222; }
+
+.unm-select {
+  background: #111;
+  border: 1px solid #333;
+  color: #AAA;
+  font-family: inherit;
+  font-size: 9px;
+  padding: 1px 3px;
+}
+
+.unm-btn {
+  background: transparent;
+  border: 1px solid #333;
+  border-radius: 2px;
+  color: #777;
+  font-family: inherit;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  padding: 2px 10px;
+  cursor: pointer;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.unm-btn:hover { border-color: #666; color: #AAA; }
+.unm-btn:disabled { opacity: 0.4; cursor: default; }
+.unm-btn:disabled:hover { border-color: #333; color: #777; }
+
+.unm-btn-primary { border-color: #556622; color: #99BB33; }
+.unm-btn-primary:hover { border-color: #88AA33; color: #CCEE55; }
+
+.unm-btn-danger { border-color: #3A1A1A; color: #884444; }
+.unm-btn-danger:hover { border-color: #884444; color: #CC4444; }
+
+.unm-link {
+  background: transparent;
+  border: none;
+  color: #668;
+  font-family: inherit;
+  font-size: 9px;
+  cursor: pointer;
+  padding: 0 2px;
+}
+.unm-link:hover { color: #99BBEE; }
+
+.unm-x {
+  background: transparent;
+  border: none;
+  color: #444;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 2px;
+}
+.unm-x:hover { color: #CC4444; }
+
+.unm-confirm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  background: #1A0F0A;
+  border-bottom: 1px solid #3A1A1A;
+  color: #CC8855;
+}
+
+.unm-empty {
+  padding: 16px 8px;
+  color: #555;
+  text-align: center;
+}
+
+.unm-status {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #555;
+  letter-spacing: 0.06em;
+}
+
+.unm-statusline {
+  padding: 4px 8px;
+  border-top: 1px solid #1A1A1A;
+  color: #99BB33;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.unm-statusline.error { color: #CC4444; }
+
+.unm-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 6px 8px;
+  border-top: 1px solid #1A1A1A;
+}
+
+.unm-footnote {
+  padding: 3px 8px;
+  color: #555;
+  font-size: 8px;
+  border-top: 1px solid #141414;
+}
+
+/* ── Import ─────────────────────────────────────────────── */
+.unm-dropzone {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 12px;
+  border: 1px dashed #333;
+  cursor: pointer;
+  padding: 32px;
+  text-align: center;
+  transition: border-color 0.1s, background 0.1s;
+}
+.unm-dropzone:hover,
+.unm-dropzone.dragging {
+  border-color: #555;
+  background: rgba(255, 215, 0, 0.03);
+}
+
+.unm-drop-icon  { font-size: 20px; color: #444; }
+.unm-drop-label { color: #888; letter-spacing: 0.06em; }
+.unm-drop-sub   { color: #444; font-size: 9px; }
+
+.unm-import-row {
+  padding: 4px 8px;
+  border-bottom: 1px solid #141414;
+}
+.unm-import-row:hover { background: #0D150D; }
+
+.unm-import-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.unm-import-sub {
+  color: #888;
+  font-size: 9px;
+  padding: 2px 0 0 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.unm-import-sub.error { color: #CC4444; }
+
+.unm-import-opts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 3px 0 0 2px;
+  color: #999;
+  font-size: 9px;
+}
+.unm-import-opts label { display: flex; align-items: center; gap: 3px; cursor: pointer; }
+
+.unm-warn { color: #CC8833; }
+
+.unm-skipped {
+  padding: 6px 8px;
+  color: #555;
+  font-size: 9px;
+}
+
+/* ── Fixes ──────────────────────────────────────────────── */
+.unm-fix-row {
+  display: grid;
+  grid-template-columns: 16px 110px 100px 100px 1fr;
+  gap: 0 8px;
+  align-items: center;
+  padding: 2px 8px;
+}
+.unm-fix-row:hover { background: #0D150D; }
+.unm-fix-row.editing { background: #10140A; }
+
+.unm-fix-head,
+.unm-fix-head:hover {
+  color: #555;
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  background: transparent;
+  border-bottom: 1px solid #181818;
+}
+
+.unm-fix-add { border-bottom: 1px solid #181818; padding-top: 4px; padding-bottom: 4px; }
+
+.unm-fix-id { color: #FFD700; }
+.unm-override { color: #CC8833; }
+
+.unm-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+}
+
+.unm-source {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Video maps ─────────────────────────────────────────── */
+.unm-map-row {
+  display: grid;
+  grid-template-columns: 16px 1fr 130px 40px 44px 90px;
+  gap: 0 8px;
+  align-items: center;
+  padding: 3px 8px;
+}
+.unm-map-row:hover { background: #0D150D; }
