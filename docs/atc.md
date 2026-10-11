@@ -359,7 +359,7 @@ Click a value button, then use the **mouse wheel** to adjust it. Click a submenu
 | **PREF** | 12 preset slots: save/save-as/delete/default |
 | **SHIFT** | Switch to the aux bar |
 
-**MAPS submenu:** HOLDS, MSA, airways (V, J, B), GRID/MORA, RELIEF, GEO, FIXES, any further airspace categories that don't fit on the main bar, OBST (obstacles, when the facility has any), one button per facility runway centerline, satellite flow buckets (see `.SAT` above), and one button per SID/STAR/approach procedure group.
+**MAPS submenu:** HOLDS, MSA, airways (V, J, B), GRID/MORA, RELIEF, GEO, FIXES, any further airspace categories that don't fit on the main bar, OBST (obstacles, when the facility has any), one button per facility runway centerline, satellite flow buckets (see `.SAT` above), and one button per SID/STAR/approach procedure group. Your own imported video maps also each get a button here, after the airspace categories. To add them, use **⚙ → User fixes & video maps** (see [User fixes and video maps](getting-started.md#user-fixes-and-video-maps)). They use the palette's CUSTOM style (line colour, dash pattern and fill colour), at MAP A or MAP B brightness, whichever you chose for that map. Their polygons are filled only when polygon fill is turned on, the same as the airspace maps.
 
 **Aux bar (via SHIFT):**
 

@@ -111,6 +111,7 @@ The **⚙** icon (top right, once signed in) opens the settings panel:
   - A track only matches a flight plan filed under the callsign it resolves to. To match one that doesn't, use `.RENAME <callsign>` and click the track (see [ATC](atc.md)).
 - **Sounds** — master mute for every audible alert TRACS plays, on by default: STARS Conflict Alert (STCA) tones and the [ABM missile-launch alert](abm.md#missile-tracking--launch-alert). Unchecking it silences both regardless of any per-module volume setting (e.g. ABM's `.vol`).
 - **Navigation data** — the LittleNavMap database TRACS is using, and (desktop app) a **Change…** button. See [Navigation data](#navigation-data-littlenavmap).
+- **User fixes & video maps → Manage…** — add your own fixes and STARS video maps. See [User fixes and video maps](#user-fixes-and-video-maps).
 - **Version line** — the TRACS version (`TRACS (dev)` when running from source), plus the relay's version and protocol number when connected to one.
 - **Help / Docs** — opens the documentation page for the module you're signed into, in a new window (a new tab in a browser). In the desktop app, Ctrl+F opens a find box at the top right: Enter / Shift+Enter or ▲ ▼ step through matches, and Esc or × closes it.
 - **License / Third-party notices** — links to the full license (GPL v3.0 or later) and the third-party notices (copyright, no warranty, data attributions).
@@ -130,6 +131,30 @@ Everything else (theatre geography, terrain, airports and runways) is bundled wi
 - **Updates:** at each launch, TRACS re-extracts automatically if the database file has changed (e.g. after a new AIRAC cycle).
 - **Without a database:** those layers are empty, and commands that look up a fix or procedure reply `NO NAVDATA`. Everything else works normally.
 - **Running from source:** you can set the `LNM_DB_PATH` environment variable instead.
+
+## User fixes and video maps
+
+**⚙ → User fixes & video maps → Manage…** opens a dialog for adding your own fixes and STARS video maps. Everything is saved per theatre, on this computer only. Nothing is shared with other controllers, so a route that uses one of your own fixes won't resolve for them.
+
+- **Theatre** — the dropdown at the top picks which theatre you're editing. It defaults to the theatre you're signed into.
+- **Import** — drop files on the dialog, or click to browse. Accepted formats:
+  - LotATC drawing layers (`.json`)
+  - GeoJSON (`.geojson`, `.json`), which includes vNAS/CRC video maps
+  - KML/KMZ
+  - DCS missions (`.miz`), whose map drawings are read
+  - CSV fix lists, one `ID,lat,lon` per line in decimal degrees
+  - `.zip` files of any of these
+  
+  Each file, or each layer inside a `.zip` or `.miz`, gets its own row. For each row you can:
+  - Rename it.
+  - Choose whether to import its fixes, its video map, or both.
+  - For files with named points, choose whether those points become fixes or stay as map labels.
+  - For files with closed lines (lines that end where they start), choose whether they import as polygons. This is ticked by default. The outline looks the same either way, but only polygons are filled when polygon fill (`.FILL`) is on.
+  
+  A row that is mostly outside the selected theatre is flagged. Re-importing a file with the same name updates its fixes and can replace the existing map.
+- **LotATC files:** points become fixes. Lines, polygons, circles and text become the video map. LotATC colours and line styles aren't used; video maps draw in the scope's own map colours.
+- **Fixes tab** — filter, add, edit or delete fixes. You can delete them one at a time, by selection, by the file they came from, or all at once. A user fix with the same ID as a navigation-data fix replaces it everywhere: scopes, `.FIND`/`.FIX`, and routes. These fixes are marked with `*`.
+- **Video maps tab** — rename a map and set its DCB button text, choose whether it follows **MAP A** or **MAP B** brightness, replace its shapes from a new file, or delete it. Each map gets its own button in the STARS **MAPS** submenu (see [ATC](atc.md)).
 
 ## Local testing without a live DCS server
 
