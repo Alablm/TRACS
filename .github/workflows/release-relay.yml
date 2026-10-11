@@ -20,7 +20,8 @@ jobs:
       fail-fast: false
       matrix:
         # ubuntu-latest is fine: the SEA embeds the official Node binary,
-        # whose glibc floor doesn't depend on the runner.
+        # whose glibc floor doesn't depend on the runner. If the relay ever
+        # gains a native dependency, pin an old runner like release-tracs.yml.
         os: [windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
