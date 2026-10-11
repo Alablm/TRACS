@@ -8,6 +8,11 @@ updates:
     groups:
       npm-minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # Trystero is pre-1.0, so its minor versions break the WebRTC sync API.
+      # Upgrade it by hand as a tested change instead.
+      - dependency-name: "@trystero-p2p/*"
+        update-types: ["version-update:semver-minor"]
   # The relay has its own package.json and lockfile (not part of the workspace).
   - package-ecosystem: npm
     directory: /relay
