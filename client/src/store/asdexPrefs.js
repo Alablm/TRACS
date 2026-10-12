@@ -1,7 +1,7 @@
 // Last-set ASDE-X display preferences — persisted to localStorage. Same
 // plain-localStorage pattern as store/abmPrefs.js / store/catccPrefs.js /
 // store/starsPrefs.js (not zustand's persist middleware): only the DCB
-// spinner values, DB EDIT toggles and .COLORS/.CENTERLINE/.COORDS below survive a reload — pan/zoom/range and other window
+// spinner values, DB EDIT toggles and .COLORS/.CENTERLINE/.COORDS/.LABELS below survive a reload — pan/zoom/range and other window
 // state intentionally stay in store/display.js's session-only windows state.
 
 import { makePrefsStore } from '../utils/prefsStore.js'
@@ -25,6 +25,7 @@ const DEFAULTS = {
   colorProfile:      null,   // .COLORS profile name (by name, not index, so a reordered asdex-colors.json still resolves)
   centerlineVisible: false,  // .CENTERLINE
   coordsVisible:     false,  // .COORDS
+  labelsVisible:     false,  // .LABELS / .LBL
 }
 
 const { load: loadAsdexPrefs, save: saveAsdexPrefs } = makePrefsStore(KEY, DEFAULTS)

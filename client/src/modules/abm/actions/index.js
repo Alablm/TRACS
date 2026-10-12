@@ -321,8 +321,8 @@ export async function REFRESH() {
   return success ? 'PALETTES REFRESHED' : 'REFRESH FAILED'
 }
 
-// .labels/.lbl/.label — name-label toggle for both airspace and
-// custom-drawing layers.
+// .labels/.lbl/.label — name-label toggle for airspace, custom-drawing,
+// fix/navaid and taxiway (with .taxiways on) labels.
 export const LABELS_TOGGLE = makeWinToggle('labelsVisible', false, 'LABELS ON', 'LABELS OFF')
 
 // .fill — toggle airspace polygon fill, remembering the last percentage used.

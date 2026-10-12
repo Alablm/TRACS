@@ -80,7 +80,7 @@ The drawing commands (`.line`, `.rect`, `.circ`, `.poly`, `.sect`, `.race`, `.te
 | `.tma` `.ctr` `.cta` `.fir` `.uir` `.sua` `.mil` `.trsa` `.classa`–`.classg` | Toggle one airspace category |
 | `.aspcolors <name>` | Select an airspace color palette |
 | `.refresh` | Reload airspace color palettes from the server |
-| `.labels` (or `.lbl` / `.label`) | Toggle name labels for airspace *and* custom drawings |
+| `.labels` (or `.lbl` / `.label`) | Toggle name labels for airspace, custom drawings, fixes/navaids, and taxiways (taxiway labels need `.taxiways` on and show inside about 5 NM range) |
 | `.labelsize [0-5]` | Set airspace/fix/drawing label size; bare form reports the current value |
 | `.fill` | Toggle polygon fill for airspace *and* custom drawings; `.fill <1-100>` sets transparency % and turns it on |
 | `.custom` / `.cust` | Toggle all custom drawing layers |

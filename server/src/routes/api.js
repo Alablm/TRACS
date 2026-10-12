@@ -59,6 +59,17 @@ function registerApiRoutes(app, { sourceRegistry, tacviewRelayClient, state, sta
     res.sendFile(filePath)
   })
 
+  // GET /api/airports/taxiway-labels/:theatre — OSM-derived taxiway label anchors
+  // (airports_taxiway_labels.json, built by scripts/buildTaxiwayLabels.py)
+  app.get('/api/airports/taxiway-labels/:theatre', (req, res) => {
+    const { theatre } = req.params
+    const folder = navdata.theatreFolder(theatre)
+    if (!folder) return res.status(404).json({ error: `unknown theatre: ${theatre}` })
+    const filePath = path.join(navdata.BUNDLED_CACHE_DIR, folder, 'airports_taxiway_labels.json')
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'no taxiway labels for this theatre' })
+    res.sendFile(filePath)
+  })
+
   // GET /api/abm/raster/:theatre/:layer — baked raster metadata
   app.get('/api/abm/raster/:theatre/:layer', (req, res) => {
     const { theatre, layer } = req.params

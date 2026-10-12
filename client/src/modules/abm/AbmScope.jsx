@@ -58,6 +58,7 @@ import { drawBraaOverlays, drawThreatRings } from './canvas/drawAbmBraa.js'
 import { drawRbl }         from './canvas/drawAbmRbl.js'
 import { drawMgrsGrid }    from './canvas/drawMgrsGrid.js'
 import { drawAbmTowns }    from './canvas/drawAbmTowns.js'
+import { drawAbmTaxiwayLabels } from './canvas/drawAbmTaxiwayLabels.js'
 import { useMissionClock } from '../../utils/useMissionClock.js'
 import { drawAbmRaster }   from './canvas/drawAbmRaster.js'
 import { drawAbmAirspace } from './canvas/drawAbmAirspace.js'
@@ -77,7 +78,7 @@ import { useHistoryCapture } from '../../utils/useHistoryCapture.js'
 import './AbmScope.css'
 import { COALITION_NUM, trueDeclaration, getVisibleMissiles, findCoalitionBullseye, isOwnSide } from '../../utils/tacticalHelpers.js'
 import { getIcaoMapping } from '../../utils/icaoMapping.js'
-import { getAirportPolygonFeatures, getTowns, getGroundUnitDb, getRasterLayer } from './abmTheatreData.js'
+import { getAirportPolygonFeatures, getTaxiwayLabels, getTowns, getGroundUnitDb, getRasterLayer } from './abmTheatreData.js'
 
 const DEFAULT_windowId = 'abm-main'
 const EMPTY_ARRAY = []
@@ -620,6 +621,8 @@ export default function AbmScope({ windowId = DEFAULT_windowId, focusKey = null,
   // Loaded through abmTheatreData.js so focus windows share one copy.
   const [polygonFeatures, setPolygonFeatures] = useState([])
   const polygonsVisible    = windowSettings?.polygonsVisible ?? false
+  // OSM-derived taxiway designators, drawn over the polygons under .labels.
+  const [taxiwayLabels, setTaxiwayLabels] = useState([])
   // Real UTM/MGRS grid (see drawMgrsGrid.js) — matches DCS's own F10 map.
   // No shared store needed (ABM-only, like the toggles above), so plain
   // local state.
@@ -835,6 +838,7 @@ export default function AbmScope({ windowId = DEFAULT_windowId, focusKey = null,
     if (!theatre) return
     let cancelled = false
     getAirportPolygonFeatures(theatre).then(f => { if (!cancelled) setPolygonFeatures(f) })
+    getTaxiwayLabels(theatre).then(l => { if (!cancelled) setTaxiwayLabels(l) })
     return () => { cancelled = true }
   }, [theatre])
 
@@ -1136,8 +1140,9 @@ export default function AbmScope({ windowId = DEFAULT_windowId, focusKey = null,
     }
     drawMgrsGrid(ctx, view, mgrsVisible, 60, windowSettings?.csMap ?? 2)
     drawAbmTowns(ctx, view, towns, townsVisible, windowSettings?.csMap ?? 2)
+    drawAbmTaxiwayLabels(ctx, view, taxiwayLabels, labelsVisible && polygonsVisible, windowSettings?.csMap ?? 2)
   }, [view, relief, reliefVisible, geoBoundaries, geoCoastlines, geoVisible,
-      polygonFeatures, polygonsVisible,
+      polygonFeatures, polygonsVisible, taxiwayLabels,
       asVisible, airspaceFeatures, airspaceColors, labelsVisible, fillVisible, fillPct, drawingLayers, airways, airwaysVisible, mora, moraVisible,
       holdings, holdingsVisible, navaids, navaidsVisible, fixes, fixesVisible, pinnedFixes, theatre,
       runwaysVisible, runwayCenterlines, mgrsVisible, towns, townsVisible,

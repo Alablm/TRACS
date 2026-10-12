@@ -420,6 +420,7 @@ A ground-movement sub-scope showing surface traffic (aircraft/helicopters below 
 | `.FP <callsign>` / `.FP` + ENTER | Open Flight Plan Editor (prefilled or blank) |
 | `.CENTERLINE` + ENTER | Toggle runway centerline overlay |
 | `.COORDS` + ENTER | Toggle cursor lat/lng readout |
+| `.LABELS` / `.LBL` + ENTER | Toggle taxiway and runway-end labels (off by default). Taxiway names come from OpenStreetMap and only appear where the real taxiway lines up with the DCS one, so airports whose DCS layout differs from today's real layout, or that OSM hasn't labelled (many military fields), show few or none |
 | `.METRIC` / `.IMPERIAL` + ENTER | Set display units, shared with STARS and PAR (see STARS) |
 | `.COLORS <name>` + ENTER | Switch color profile (e.g. Day/Night) |
 | `<d>` (1–9) + SLEW | Set/clear a contact's leader-line direction (`5` clears) |
@@ -447,7 +448,7 @@ The fix field shows the first three letters of the first known fix in the flight
 **DCB:** RANGE, LDR DIR, LDR LEN, PTL LNTH, HISTORY, H_RATE (same click-then-wheel interaction as the main ATC DCB), plus a split **DB ON/OFF** / **DB EDIT** button:
 
 - **DB ON/OFF** — show or hide every datablock. This also resets any per-aircraft toggles made by clicking targets.
-- **DB EDIT** — submenu with **FULL/PART** and ON/OFF selectors for **ALTITUDE**, **TYPE**, **FIX**, **VELOCITY**, and **SCRATCH PAD**. Click either word to choose it; the current choice is amber. **DONE** returns to the main bar. DB EDIT settings persist across reloads, as do the `.COLORS` profile and the `.CENTERLINE`/`.COORDS` toggles.
+- **DB EDIT** — submenu with **FULL/PART** and ON/OFF selectors for **ALTITUDE**, **TYPE**, **FIX**, **VELOCITY**, and **SCRATCH PAD**. Click either word to choose it; the current choice is amber. **DONE** returns to the main bar. DB EDIT settings persist across reloads, as do the `.COLORS` profile and the `.CENTERLINE`/`.COORDS`/`.LABELS` toggles.
 
 **Function keys:** **F6** toggles all datablocks (same as DB ON/OFF); **F7** is MULTIFUNC (`MF`).
 

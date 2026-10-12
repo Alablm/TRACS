@@ -2,6 +2,7 @@ const ASDEX_COMMANDS = [
   { id: 'OPEN_FPE',           pattern: /^\.FP (.+)$/,       trigger: 'ENTER', captures: ['aid'] },
   { id: 'OPEN_FPE',           pattern: /^\.FP$/,             trigger: 'ENTER' },
   { id: 'TOGGLE_CENTERLINE',  pattern: /^\.CENTERLINE$/,     trigger: 'ENTER' },
+  { id: 'TOGGLE_LABELS',      pattern: /^\.(?:LABELS|LBL)$/, trigger: 'ENTER' },
   { id: 'TOGGLE_COORDS',      pattern: /^\.COORDS$/,         trigger: 'ENTER' },
   { id: 'METRIC_UNITS',       pattern: /^\.METRIC$/,         trigger: 'ENTER' },
   { id: 'IMPERIAL_UNITS',     pattern: /^\.IMPERIAL$/,       trigger: 'ENTER' },

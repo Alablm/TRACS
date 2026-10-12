@@ -5,7 +5,7 @@
  *   captures   — named captures from asdexCommandParser.js
  *   slewTarget — { unitId, unit } | null  (null for ENTER-triggered commands)
  *   context    — AsdexScope's component-local state the actions need:
- *                { profiles, setCenterlineVisible, setCoordsVisible }
+ *                { profiles, setCenterlineVisible, setCoordsVisible, setLabelsVisible }
  *
  * Actions report their result by writing the ASDE-X preview area directly.
  */
@@ -33,6 +33,12 @@ function OPEN_FPE({ captures }) {
 
 function TOGGLE_CENTERLINE({ setCenterlineVisible }) {
   setCenterlineVisible(v => { saveAsdexPrefs({ centerlineVisible: !v }); return !v })
+  preview().clearAfterCommand()
+}
+
+// .LABELS / .LBL — taxiway and runway-end labels on the surface map.
+function TOGGLE_LABELS({ setLabelsVisible }) {
+  setLabelsVisible(v => { saveAsdexPrefs({ labelsVisible: !v }); return !v })
   preview().clearAfterCommand()
 }
 
@@ -108,7 +114,7 @@ function RESET_CALLSIGN({ slewTarget }) {
 }
 
 const ACTION_MAP = {
-  OPEN_FPE, TOGGLE_CENTERLINE, TOGGLE_COORDS, METRIC_UNITS, IMPERIAL_UNITS, SET_COLORS,
+  OPEN_FPE, TOGGLE_CENTERLINE, TOGGLE_LABELS, TOGGLE_COORDS, METRIC_UNITS, IMPERIAL_UNITS, SET_COLORS,
   SET_LEADER_SHORT, TAG_TARGET, RENAME_CALLSIGN, RESET_CALLSIGN,
 }
 
@@ -117,7 +123,7 @@ const ACTION_MAP = {
  *
  * @param {object} parsed      { command, captures }
  * @param {object} slewTarget  { unitId, unit } | null
- * @param {object} context     { profiles, setCenterlineVisible, setCoordsVisible }
+ * @param {object} context     { profiles, setCenterlineVisible, setCoordsVisible, setLabelsVisible }
  */
 export function dispatch(parsed, slewTarget, context) {
   const handler = ACTION_MAP[parsed.command.id]

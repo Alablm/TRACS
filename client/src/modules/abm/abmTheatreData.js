@@ -1,5 +1,5 @@
-// Per-theatre static data every AbmScope needs: airport polygons, town
-// labels, the ground/navy unit DB and the four baked raster layers. Each
+// Per-theatre static data every AbmScope needs: airport polygons, taxiway
+// labels, town labels, the ground/navy unit DB and the four baked raster layers. Each
 // focus window mounts its own AbmScope, so without this every window
 // re-downloaded and re-parsed the polygons (several MB of JSON) and decoded
 // its own copy of each raster (tens of MB of bitmap apiece). Here each one is
@@ -40,6 +40,11 @@ function fetchJson(url) {
 export function getAirportPolygonFeatures(theatre) {
   return cached(theatre, 'polygons',
     () => fetchJson(`/api/airports/polygons/${encodeURIComponent(theatre)}`).then((g) => g?.features ?? []), [])
+}
+
+export function getTaxiwayLabels(theatre) {
+  return cached(theatre, 'taxiwayLabels',
+    () => fetchJson(`/api/airports/taxiway-labels/${encodeURIComponent(theatre)}`).then((d) => d?.labels ?? []), [])
 }
 
 export function getTowns(theatre) {

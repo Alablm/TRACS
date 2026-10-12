@@ -26,10 +26,12 @@ import { parseAsdexCommand }   from './asdexCommandParser.js'
 import { dispatch }            from './actions/index.js'
 import { resolveSlew }         from '../../../utils/slewResolver.js'
 import { drawAsdexSurface }    from './canvas/drawAsdexSurface.js'
+import { drawAsdexLabels }     from './canvas/drawAsdexLabels.js'
 import { drawAsdexContacts }   from './canvas/drawAsdexContacts.js'
 import { FPE }                 from '../../../components/FPE/FPE.jsx'
 import './AsdexScope.css'
 import { getIcaoMapping } from '../../../utils/icaoMapping.js'
+import { airbaseRunways, parallelSuffixes } from '../../../utils/theatreAirports.js'
 
 const RANGE_MIN    = 0.1
 const RANGE_MAX    = 2.0
@@ -44,11 +46,11 @@ const CONTACTS_MIN_FRAME_MS = 100 // contacts canvas redraw cap (~10 fps); see t
 const DEFAULT_PROFILES = [
   {
     name: 'Day',
-    colors: { background: '#00627b', taxiway: '#4b4b4b', runway: '#221f1e', contacts: '#ffffff', datablock: '#20a634' },
+    colors: { background: '#00627b', taxiway: '#4b4b4b', runway: '#221f1e', contacts: '#ffffff', datablock: '#20a634', taxiwayLabel: '#d0d0d0', runwayLabel: '#ffffff' },
   },
   {
     name: 'Night',
-    colors: { background: '#070a0a', taxiway: '#1a2020', runway: '#2a3030', contacts: '#00ff88', datablock: '#00cc66' },
+    colors: { background: '#070a0a', taxiway: '#1a2020', runway: '#2a3030', contacts: '#00ff88', datablock: '#00cc66', taxiwayLabel: '#7f8c8c', runwayLabel: '#a8b4b4' },
   },
 ]
 
@@ -76,6 +78,7 @@ export default function AsdexScope() {
   const navNavaids      = useNavdataStore(s => s.navaids)
   const [facilityIcao, setFacilityIcao] = useState(null)
   const [centerlines, setCenterlines] = useState([])
+  const [runwayEnds, setRunwayEnds]   = useState([])   // [{ name, lat, lon, otherLat, otherLon }] for runway labels
   const myControllerId  = useControllersStore(s => s.registry[positionName]?.controllerId ?? null)
   const displayStore    = useDisplayStore()
   const windowSettings  = useDisplayStore(s => s.windows[ASDEX_WINDOW_ID])
@@ -110,9 +113,11 @@ export default function AsdexScope() {
   const unitSystem                            = useUnitSystem('atc')
   const [polygonData, setPolygonData]         = useState(null)    // raw GeoJSON features for theatre
   const [nameMap, setNameMap]                 = useState(null)    // { dcsName: stemName }
+  const [taxiwayLabelData, setTaxiwayLabelData] = useState(null)  // [{ airport, ref, lat, lon, runM }] for theatre
   const [profiles, setProfiles]               = useState(DEFAULT_PROFILES)
   const [centerlineVisible, setCenterlineVisible] = useState(() => loadAsdexPrefs().centerlineVisible)
   const [coordsVisible, setCoordsVisible]     = useState(() => loadAsdexPrefs().coordsVisible)
+  const [labelsVisible, setLabelsVisible]     = useState(() => loadAsdexPrefs().labelsVisible)
   const coordsRef = useRef(null)
 
   // Pan drag state: during drag, update center refs directly for perf;
@@ -158,6 +163,13 @@ export default function AsdexScope() {
     if (!stem) return []
     return polygonData.filter(f => f.properties.airport === stem)
   }, [polygonData, facilityDcsName, nameMap])
+
+  const facilityTaxiwayLabels = useMemo(() => {
+    if (!taxiwayLabelData || !facilityDcsName || !nameMap) return []
+    const stem = nameMap[facilityDcsName]
+    if (!stem) return []
+    return taxiwayLabelData.filter(l => l.airport === stem)
+  }, [taxiwayLabelData, facilityDcsName, nameMap])
 
   // ── Window init ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -209,8 +221,21 @@ export default function AsdexScope() {
       .then(data => {
         if (!data || cancelled) return
         const cls = []
+        const ends = []
+        const suffixMap = parallelSuffixes(data.airbases)
         for (const ab of data.airbases ?? []) {
           if (ab.airbase !== facilityDcsName) continue
+          // Runway-end labels: pair each threshold with its reciprocal so the
+          // label can sit just past the threshold along the runway axis.
+          const thresholds = airbaseRunways(ab, suffixMap)
+          const byName = new Map(thresholds.map(t => [t.name, t]))
+          for (const t of thresholds) {
+            const num   = parseInt(t.name, 10)
+            const sfx   = t.name.slice(String(num).padStart(2, '0').length)
+            const recip = String(((num + 18) % 36) || 36).padStart(2, '0') + (sfx === 'L' ? 'R' : sfx === 'R' ? 'L' : sfx)
+            const other = byName.get(recip)
+            if (other) ends.push({ name: t.name, lat: t.lat, lon: t.lon, otherLat: other.lat, otherLon: other.lon })
+          }
           for (const rwy of ab.runways ?? []) {
             if (rwy.end1?.lat == null || rwy.end2?.lat == null) continue
             cls.push({
@@ -221,6 +246,7 @@ export default function AsdexScope() {
           }
         }
         setCenterlines(cls)
+        setRunwayEnds(ends)
       })
       .catch(() => {})
     return () => { cancelled = true }
@@ -239,7 +265,7 @@ export default function AsdexScope() {
     return () => { cancelled = true }
   }, [theatre, facilityDcsName])
 
-  // ── Fetch polygon data, name map, and colors ─────────────────────────────────
+  // ── Fetch polygon data, name map, taxiway labels, and colors ─────────────────────────────────
   useEffect(() => {
     if (!theatre) return
     let cancelled = false
@@ -251,6 +277,10 @@ export default function AsdexScope() {
       .then(r => r.ok ? r.json() : null)
       .then(map => { if (!cancelled) setNameMap(map) })
       .catch(() => { if (!cancelled) setNameMap(null) })
+    fetch(`/api/airports/taxiway-labels/${encodeURIComponent(theatre)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (!cancelled) setTaxiwayLabelData(data?.labels ?? null) })
+      .catch(() => { if (!cancelled) setTaxiwayLabelData(null) })
     return () => { cancelled = true }
   }, [theatre])
 
@@ -348,7 +378,8 @@ export default function AsdexScope() {
     if (!view || !surfaceRef.current) return
     const ctx = surfaceRef.current.getContext('2d')
     drawAsdexSurface(ctx, view, facilityFeatures, colors)
-  }, [view, facilityFeatures, colors])
+    if (labelsVisible) drawAsdexLabels(ctx, view, facilityTaxiwayLabels, runwayEnds, colors)
+  }, [view, facilityFeatures, colors, labelsVisible, facilityTaxiwayLabels, runwayEnds])
 
   // ── Contacts rAF loop ────────────────────────────────────────────────────────
   // Start unconditionally — contactsRef may be null on mount if windowSettings is
@@ -411,7 +442,7 @@ export default function AsdexScope() {
       useAsdexPreviewStore.getState().setResponse('INVALID INPUT')
       return
     }
-    dispatch(parsed, null, { profiles, setCenterlineVisible, setCoordsVisible })
+    dispatch(parsed, null, { profiles, setCenterlineVisible, setCoordsVisible, setLabelsVisible })
   }, [profiles])
 
   // ── Pan (right-click drag) ───────────────────────────────────────────────────
