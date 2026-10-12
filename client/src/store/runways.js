@@ -281,7 +281,9 @@ export const useRunwaysStore = create((set, get) => ({
       const airportPositions = {}
       const airbasePositions = []
       for (const ab of airbases ?? []) {
-        const pts = (ab.runways ?? []).filter((r) => r.lat != null && r.lon != null)
+        // Runway-less airbases (helipads, FOBs) export `runways` as {}, not [].
+        const rwys = Array.isArray(ab.runways) ? ab.runways : []
+        const pts = rwys.filter((r) => r.lat != null && r.lon != null)
         if (pts.length) {
           airbasePositions.push({
             lat: pts.reduce((a, r) => a + r.lat, 0) / pts.length,
@@ -291,7 +293,7 @@ export const useRunwaysStore = create((set, get) => ({
         const icaoCode = theatreIcao[ab.airbase]
         if (!icaoCode) continue
         let latSum = 0, lonSum = 0, count = 0
-        for (const rwy of (ab.runways ?? [])) {
+        for (const rwy of rwys) {
           if (rwy.lat != null && rwy.lon != null) {
             latSum += rwy.lat; lonSum += rwy.lon; count++
           }
