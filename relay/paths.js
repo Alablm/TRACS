@@ -6,13 +6,16 @@
 // disk, so a packaged relay reads and writes relative to the running
 // executable instead, mirroring the isSeaBinary/exeDir pattern in
 // server/scripts/terrainDataExe/main.js. A plain `node index.js` run uses
-// this folder.
+// this folder. RELAY_DATA_DIR overrides both, so a container image can keep
+// its code read-only and its operator files on a mounted volume.
 
 const path = require('path')
 
 let isSeaBinary = false
 try { isSeaBinary = require('node:sea').isSea() } catch { /* Node < 21, or not built as SEA */ }
 
-const RELAY_DIR = isSeaBinary ? path.dirname(process.execPath) : __dirname
+const RELAY_DIR = process.env.RELAY_DATA_DIR
+  ? path.resolve(process.env.RELAY_DATA_DIR)
+  : isSeaBinary ? path.dirname(process.execPath) : __dirname
 
 module.exports = { isSeaBinary, RELAY_DIR }

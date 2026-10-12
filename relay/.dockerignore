@@ -1,0 +1,12 @@
+# Keep the build context to what the image needs, and never bake an
+# operator's config or sessions into a locally built image.
+node_modules
+dist
+scripts
+config.json
+sessions.json
+tacviewDetectionConfig.json
+*.example.json
+icon.png
+Dockerfile
+.dockerignore

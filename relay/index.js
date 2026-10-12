@@ -260,6 +260,6 @@ server.listen(config.wsPort, () => {
 // `node index.js` has no standalone executable to swap out from under
 // itself, and would just be repeatedly re-downloading its own source.
 if (isSeaBinary) {
-  checkAndApplyUpdate(config.autoUpdate, { exePath: process.execPath, exeDir: RELAY_DIR, shutdown })
+  checkAndApplyUpdate(config.autoUpdate, { exePath: process.execPath, exeDir: path.dirname(process.execPath), shutdown })
     .catch((err) => console.error('[relay:update] check failed:', err.message))
 }

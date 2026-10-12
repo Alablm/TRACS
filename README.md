@@ -137,7 +137,7 @@ A Relay can also be used alongside Olympus or Tacview, only for SRS data and syn
 
 ## Running a TRACS Relay (server operators)
 
-The relay is a standalone executable, usually run on the DCS server machine next to SRS. It is optional. When present, it:
+The relay is a standalone executable (or a [Docker image](#running-with-docker)), usually run on the DCS server machine next to SRS. It is optional. When present, it:
 
 - listens to **SRS's LotATC export** (UDP) and serves transponder data (Mode 1/2/3/4, status) to every connected controller at `/transponders`;
 - hosts **centralized sync** between controllers at `/sync`;
@@ -146,6 +146,8 @@ The relay is a standalone executable, usually run on the DCS server machine next
 All three are served on one WebSocket port. The same port answers `GET /health` with the relay's version, protocol version, uptime and which capabilities are active, for monitoring.
 
 ### Setup
+
+Using Docker? See [Running with Docker](#running-with-docker) instead of steps 1, 2 and 5.
 
 1. From the latest `relay-v*` release, download `TRACS-Relay.exe` (Windows) or `TRACS-Relay` (Linux), plus `config.example.json`.
 2. Put them in one folder, and copy `config.example.json` to `config.json` in that folder.
@@ -172,6 +174,7 @@ Each key falls back to the environment variable listed, then to the default.
 | `missileDetectionMs` | `MISSILE_DETECTION_MS` | `1000`                           | Missile detection update interval, 1000-60,000 ms (example: `4000`)                                                                                                  |
 | `autoUpdate.mode`    | —                      | `window`                         | `notify`, `immediate`, or `window` (see below)                                                                                                                       |
 | `autoUpdate.window`  | —                      | `04:00`–`05:00` America/New_York | `{ start, end, timezone }` daily maintenance window for `window` mode                                                                                                |
+| —                    | `RELAY_DATA_DIR`       | the executable's folder          | Folder holding `config.json`, `sessions.json` and `tacviewDetectionConfig.json`. The Docker image sets it to `/data`                                                 |
 
 ### Relay updates
 
@@ -183,7 +186,7 @@ The executable checks GitHub Releases for newer `relay-v*` versions at startup a
 | `immediate`       | Downloads it, swaps the executable in place, and exits                     |
 | `window`          | Does the same as `immediate`, but only inside the daily maintenance window |
 
-The relay exits after swapping, so run it under a supervisor that restarts it (see [Running as a service](#running-as-a-service)).
+The relay exits after swapping, so run it under a supervisor that restarts it (see [Running as a service](#running-as-a-service)). The Docker image never self-updates; see [Running with Docker](#running-with-docker).
 
 ### Running as a service
 
@@ -221,6 +224,44 @@ WantedBy=multi-user.target
 ```
 
 The service user needs write access to the folder, since self-updates replace the executable in place.
+
+### Running with Docker
+
+A multi-arch image (`linux/amd64`, `linux/arm64`) is published with every relay release at `ghcr.io/denimchickensoft/tracs-relay`. Tags are the exact version (`0.2.0`), the minor version (`0.2`), and `latest`. It runs the same relay as the executables.
+
+1. Make a folder on the host for the relay's files, and put your `config.json` in it (copy [`config.example.json`](relay/config.example.json)). The relay also writes `sessions.json` there. On Linux, the container runs as uid 1000, so make the folder writable by that user: `sudo chown -R 1000:1000 /srv/tracs-relay`. Docker Desktop on Windows and macOS doesn't need this.
+2. Start the container, mounting that folder at `/data`:
+
+```sh
+docker run -d --name tracs-relay --restart unless-stopped \
+  -p 8765:8765 -p 10712:10712/udp \
+  -v /srv/tracs-relay:/data \
+  ghcr.io/denimchickensoft/tracs-relay:latest
+```
+
+Or with Docker Compose (`compose.yaml`, then `docker compose up -d`):
+
+```yaml
+services:
+  tracs-relay:
+    image: ghcr.io/denimchickensoft/tracs-relay:latest
+    restart: unless-stopped
+    ports:
+      - "8765:8765"
+      - "10712:10712/udp"
+    volumes:
+      - /srv/tracs-relay:/data
+```
+
+- **Settings.** `config.json` and the environment variables in the table above both work (`-e TACVIEW_HOST=…`). `passwords` can only be set in `config.json`. To change the WebSocket port, set `RELAY_WS_PORT` rather than `wsPort` in `config.json`, since the container's health check follows the env var. Then publish that port instead of 8765.
+- **SRS.** Point SRS's LotATC export at the Docker host's address, on the published UDP port.
+- **Tacview on the same machine.** `localhost` inside the container is the container itself. Set `tacviewHost` to `host.docker.internal` on Docker Desktop (Windows/macOS), or on Linux run with `--network host` (drop the `-p` flags) and use `127.0.0.1`.
+- **Updating.** The built-in auto-update doesn't run in the container, and `autoUpdate` is ignored. Pull a new image and recreate the container: `docker pull ghcr.io/denimchickensoft/tracs-relay:latest`, then `docker rm -f tracs-relay` and the `docker run` command again (or `docker compose pull && docker compose up -d`).
+- **Health.** `docker ps` shows the container as `healthy` once `/health` answers.
+- **Logs.** `docker logs -f tracs-relay`.
+- **Firewall.** On Linux, Docker writes its own firewall rules for published ports, and these bypass ufw and firewalld. To restrict UDP 10712 to the SRS server's address (see [Firewall](#firewall)), use your host provider's firewall or Docker's `DOCKER-USER` chain. Alternatively, publish the port only on a private interface (`-p 10.0.0.5:10712:10712/udp`).
+
+To build the image yourself from a clone: `docker build -t tracs-relay relay`.
 
 ### Firewall
 

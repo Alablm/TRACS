@@ -25,3 +25,8 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+  # The relay image's Node base (relay/Dockerfile).
+  - package-ecosystem: docker
+    directory: /relay
+    schedule:
+      interval: weekly
