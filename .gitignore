@@ -51,6 +51,7 @@ server/navdata/cache/*
 !server/navdata/cache/*/
 server/navdata/cache/*/*
 !server/navdata/cache/*/airports_polygons.json
+!server/navdata/cache/*/airports_taxiway_labels.json
 !server/navdata/cache/*/basemap.json
 !server/navdata/cache/*/basemap.png
 !server/navdata/cache/*/geo.json

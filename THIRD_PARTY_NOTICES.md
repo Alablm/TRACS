@@ -12,6 +12,7 @@ Map data © OpenStreetMap contributors, available under the [Open Database Licen
 
 The following databases are derived from OpenStreetMap data and are made available under the ODbL:
 - Roads and railways: `server/navdata/cache/<theatre>/roads.json` and `roads.png`. They were built from [Geofabrik](https://download.geofabrik.de/) country extracts.
+- Taxiway labels: `server/navdata/cache/<theatre>/airports_taxiway_labels.json`. They were built from [Geofabrik](https://download.geofabrik.de/) extracts and hold only label positions and taxiway designators.
 - Coastlines in `server/navdata/cache/<theatre>/geo.json`, and the land/sea raster `basemap.png`. They were built from the land polygons published at [osmdata.openstreetmap.de](https://osmdata.openstreetmap.de/).
 
 ### Natural Earth

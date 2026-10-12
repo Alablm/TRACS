@@ -22,7 +22,8 @@ const COLOR_CONFIG_DIR = USER_CONFIG_DIR ?? CONFIG_DIR
 //  - BUNDLED_CACHE_DIR: wherever this code ships from (read-only in a
 //    packaged app - the install directory). Holds the bundled, non-LNM
 //    theatre data (geo/relief/basemap/terrain/roads/water/mva/
-//    airports_polygons), read directly from here, never copied.
+//    airports_polygons/airports_taxiway_labels), read directly from here,
+//    never copied.
 //  - CACHE_DIR: the writable location for LNM-derived extraction output,
 //    overridable via TRACS_NAVDATA_CACHE_DIR (same pattern as TRACS_STATE_DIR
 //    in server/src/stateFiles.js). electron/main.js points it at a userData
