@@ -1,10 +1,14 @@
-// Turns dropped/picked files into preview rows for the user fixes & video
-// maps manager. Every file — or every entry of a .zip/.kmz, or every layer of
+// Turns dropped/picked files into preview rows for the user navdata
+// manager's IMPORT tab. Every file — or every entry of a .zip/.kmz, or every layer of
 // a .miz — becomes its own row, parsed independently so one bad file doesn't
 // block the rest:
 //
 //   { key, fileName, name, fixes, features, pointCandidates, pointsAsFixes,
 //     closedLineCandidates, closedLinesAsPolygons, error }
+//
+// A procedure JSON file (see utils/userProcedures.js) instead becomes one
+// row carrying `procs` (its procedure candidates) and nothing else, for the
+// manager to hand to the PROCEDURES tab.
 //
 // `fixes` are explicit fixes (LotATC `point` drawings, CSV rows).
 // `pointCandidates` counts named Point features in `features` that could be
@@ -20,6 +24,7 @@ import { parseMiz } from './parseMiz.js'
 import { parseKml } from './parseKml.js'
 import { parseLotatc, isLotatcLayer } from './parseLotatc.js'
 import { normalizeFixId, isValidLatLon } from './userFixes.js'
+import { parseProcedureJson } from './userProcedures.js'
 
 const ZIP_ENTRY_EXT = /\.(json|geojson|ndgeojson|kml|kmz|csv)$/i
 
@@ -156,6 +161,11 @@ function parseText(fileName, text) {
   // .json / .geojson / .ndgeojson: LotATC layer or GeoJSON
   let json = null
   try { json = JSON.parse(text) } catch { /* maybe newline-delimited GeoJSON */ }
+  const procs = json != null ? parseProcedureJson(fileName, json) : null
+  if (procs) {
+    if (!procs.length) throw new Error('No procedures in file')
+    return [{ ...makeRow(fileName, baseName(fileName), {}), procs, error: null }]
+  }
   if (isLotatcLayer(json)) {
     const { name, fixes, features } = parseLotatc(json, baseName(fileName))
     // LotATC already separates fixes (`point`) from labels (`text`).

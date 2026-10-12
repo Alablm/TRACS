@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { computeMagvar, missionDecimalYear } from '../utils/magvar.js'
 import { EARTH_RADIUS_NM } from '../utils/units.js'
 import { getIcaoMapping } from '../utils/icaoMapping.js'
+import { parallelSuffixes } from '../utils/theatreAirports.js'
 import { log } from '../utils/log.js'
 
 const FT_PER_NM = 6076.115
@@ -120,39 +121,9 @@ export const useRunwaysStore = create((set, get) => ({
         if (!rwyRes.ok) throw new Error(`HTTP ${rwyRes.status}`)
         const rwyData = await rwyRes.json()
 
-        // Pre-pass: group runway entries by lower designator to find parallels.
-        // suffixMap: rwy object → { lowerSuffix: 'L'|'C'|'R'|'' }
-        // lowerSuffix is the suffix in the lower-numbered heading direction.
-        const suffixMap = new Map()
-        for (const ab of rwyData.airbases ?? []) {
-          if (!Array.isArray(ab.runways) || ab.runways.length === 0) continue
-          const groups = {}
-          for (const rwy of ab.runways) {
-            const recip    = ((rwy.name + 18) % 36) || 36
-            const lowerNum = Math.min(rwy.name, recip)
-            if (!groups[lowerNum]) groups[lowerNum] = []
-            groups[lowerNum].push(rwy)
-          }
-          for (const [lowerNumStr, rwys] of Object.entries(groups)) {
-            if (rwys.length === 1) {
-              suffixMap.set(rwys[0], '')
-              continue
-            }
-            const lowerNum = parseInt(lowerNumStr, 10)
-            const headRad  = (lowerNum * 10) * Math.PI / 180
-            const perpE    = Math.cos(headRad)
-            const perpN    = -Math.sin(headRad)
-            const cosLat   = Math.cos(rwys[0].lat * Math.PI / 180)
-            const sorted   = [...rwys].sort((a, b) =>
-              (a.lon * cosLat * perpE + a.lat * perpN) -
-              (b.lon * cosLat * perpE + b.lat * perpN)
-            )
-            const SUFFIXES = rwys.length === 2 ? ['L', 'R'] : ['L', 'C', 'R']
-            for (let i = 0; i < sorted.length; i++) {
-              suffixMap.set(sorted[i], SUFFIXES[i] ?? 'R')
-            }
-          }
-        }
+        // Pre-pass: suffixMap: rwy object → 'L'|'C'|'R'|'', the parallel
+        // suffix in the lower-numbered heading direction.
+        const suffixMap = parallelSuffixes(rwyData.airbases)
 
         theatreCache[theatre] = { ...rwyData, suffixMap }
       }

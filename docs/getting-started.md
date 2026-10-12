@@ -111,7 +111,7 @@ The **⚙** icon (top right, once signed in) opens the settings panel:
   - A track only matches a flight plan filed under the callsign it resolves to. To match one that doesn't, use `.RENAME <callsign>` and click the track (see [ATC](atc.md)).
 - **Sounds** — master mute for every audible alert TRACS plays, on by default: STARS Conflict Alert (STCA) tones and the [ABM missile-launch alert](abm.md#missile-tracking--launch-alert). Unchecking it silences both regardless of any per-module volume setting (e.g. ABM's `.vol`).
 - **Navigation data** — the LittleNavMap database TRACS is using, and (desktop app) a **Change…** button. See [Navigation data](#navigation-data-littlenavmap).
-- **User fixes & video maps → Manage…** — add your own fixes and STARS video maps. See [User fixes and video maps](#user-fixes-and-video-maps).
+- **User navdata → Manage…** — add your own fixes, STARS video maps and procedures. See [User navdata](#user-navdata).
 - **Version line** — the TRACS version (`TRACS (dev)` when running from source), plus the relay's version and protocol number when connected to one.
 - **Help / Docs** — opens the documentation page for the module you're signed into, in a new window (a new tab in a browser). In the desktop app, Ctrl+F opens a find box at the top right: Enter / Shift+Enter or ▲ ▼ step through matches, and Esc or × closes it.
 - **License / Third-party notices** — links to the full license (GPL v3.0 or later) and the third-party notices (copyright, no warranty, data attributions).
@@ -132,9 +132,9 @@ Everything else (theatre geography, terrain, airports and runways) is bundled wi
 - **Without a database:** those layers are empty, and commands that look up a fix or procedure reply `NO NAVDATA`. Everything else works normally.
 - **Running from source:** you can set the `LNM_DB_PATH` environment variable instead.
 
-## User fixes and video maps
+## User navdata
 
-**⚙ → User fixes & video maps → Manage…** opens a dialog for adding your own fixes and STARS video maps. Everything is saved per theatre, on this computer only. Nothing is shared with other controllers, so a route that uses one of your own fixes won't resolve for them.
+**⚙ → User navdata → Manage…** opens a dialog for adding your own fixes, STARS video maps and procedures. Everything is saved per theatre, on this computer only. Nothing is shared with other controllers, so a route that uses one of your own fixes or procedures won't resolve for them.
 
 - **Theatre** — the dropdown at the top picks which theatre you're editing. It defaults to the theatre you're signed into.
 - **Import** — drop files on the dialog, or click to browse. Accepted formats:
@@ -143,6 +143,7 @@ Everything else (theatre geography, terrain, airports and runways) is bundled wi
   - KML/KMZ
   - DCS missions (`.miz`), whose map drawings are read
   - CSV fix lists, one `ID,lat,lon` per line in decimal degrees
+  - Procedure `.json` files (see the procedures tab below), which are passed to the procedures tab
   - `.zip` files of any of these
   
   Each file, or each layer inside a `.zip` or `.miz`, gets its own row. For each row you can:
@@ -155,6 +156,16 @@ Everything else (theatre geography, terrain, airports and runways) is bundled wi
 - **LotATC files:** points become fixes. Lines, polygons, circles and text become the video map. LotATC colours and line styles aren't used; video maps draw in the scope's own map colours.
 - **Fixes tab** — filter, add, edit or delete fixes. You can delete them one at a time, by selection, by the file they came from, or all at once. A user fix with the same ID as a navigation-data fix replaces it everywhere: scopes, `.FIND`/`.FIX`, and routes. These fixes are marked with `*`.
 - **Video maps tab** — rename a map and set its DCB button text, choose whether it follows **MAP A** or **MAP B** brightness, replace its shapes from a new file, or delete it. Each map gets its own button in the STARS **MAPS** submenu (see [ATC](atc.md)).
+- **Procedures tab** — your own SIDs, STARs and approaches, each belonging to one airport in the theatre. They work like navigation-data procedures: when the airport is your facility they get STARS **MAPS** buttons, `.PROC <name>` shows one, and a filed route such as `ALIK1D.KTS` draws through it. A user procedure with the same airport, type and name as a navigation-data procedure replaces it, and is marked with `*`.
+  - **New** opens the builder. Pick the airport, SID/STAR/APPCH, name, runway and (for approaches) the approach type. Then add transitions, each a list of legs:
+    - **fix**: a fix, navaid or runway (`RW07`) ident from navigation data or your own fixes. The *add fixes by ident* box adds several at once.
+    - **lat/lon**: a position in decimal degrees, with an optional name.
+    - **crs/dist**: a magnetic course and distance in NM from the previous leg, or from the runway threshold for a first leg.
+    
+    Each leg can also have an altitude restriction (at, at/above, at/below, between), a speed restriction, a turn direction and, for approaches, a missed-approach flag (drawn dashed). A SID/STAR transition is named after its runway (`07`, or blank for all runways) or its enroute fix. An approach's blank transition is the final approach, and the others are named after their IAF. Positions are worked out when you save, so moving a fix later doesn't move procedures already built on it.
+  - **DCB label** sets the button text. Left blank, procedures are grouped like navigation data: SIDs/STARs by their name without the last letter (`ALIK1D` → `ALIK1`), and approaches by type and runway (`ILS 07`).
+  - **Import** accepts navigation-data procedure files (an airport file shaped like TRACS's own, named `<ICAO>.json`), single procedures (`{ "airport", "category", "name", "type", "runway", "label", "transitions" }`, alone or in an array), and lines in GeoJSON, KML or KMZ. Each line becomes one procedure, and points within 0.1 NM of a known fix take its name. Every row lets you set the airport, category, name and runway before importing.
+  - **Export airport…** saves all your procedures for one airport as a `<ICAO>.json` file in the same format, ready to share or re-import.
 
 ## Local testing without a live DCS server
 

@@ -770,7 +770,7 @@ export function App() {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#888', fontSize: '0.7rem' }}>
-              <span style={{ flex: 1 }}>User fixes &amp; video maps</span>
+              <span style={{ flex: 1 }}>User navdata</span>
               <button
                 onClick={() => { setSettingsOpen(false); setUserNavOpen(true) }}
                 style={{ background: 'transparent', border: '1px solid #444', borderRadius: '3px', color: '#888', cursor: 'pointer', fontSize: '0.65rem', padding: '1px 8px' }}

@@ -1,49 +1,26 @@
 import { create } from 'zustand'
+import { useUserNavdataStore } from './userNavdata.js'
+import { mergeProcedures, buildGroups } from '../utils/userProcedures.js'
 
-const TYPE_LABELS = {
-  ILS:    'ILS',     RNAV:   'RNAV',    VORDME: 'VOR/DME',
-  NDB:    'NDB',     TCN:    'TACAN',   LOC:    'LOC',
-  NDBDME: 'NDB/DME', VOR:   'VOR',     GNSS:   'GNSS',
-  LDA:    'LDA',     LOCB:  'LOC BC',  GPS:    'GPS',
-  IGS:    'IGS',
+const NO_GROUPS = { sidGroups: {}, starGroups: {}, appchGroups: {} }
+
+// The active theatre's user procedures (see store/userNavdata.js).
+function userProcs() {
+  const { byTheatre, theatre } = useUserNavdataStore.getState()
+  return byTheatre[theatre]?.procs ?? []
 }
 
-function rwyNumber(runway) {
-  if (!runway) return 'CIRC'
-  const m = runway.match(/\d+/)
-  return m ? m[0] : 'CIRC'
-}
-
-function buildGroups(raw) {
-  const sidGroups  = {}
-  const starGroups = {}
-  const appchGroups = {}
-
-  for (const key of Object.keys(raw.SID ?? {})) {
-    const base = key.slice(0, -1)
-    if (!sidGroups[base]) sidGroups[base] = []
-    sidGroups[base].push(key)
-  }
-
-  for (const key of Object.keys(raw.STAR ?? {})) {
-    const base = key.slice(0, -1)
-    if (!starGroups[base]) starGroups[base] = []
-    starGroups[base].push(key)
-  }
-
-  for (const [key, proc] of Object.entries(raw.APPCH ?? {})) {
-    const typeLabel = TYPE_LABELS[proc.type] ?? proc.type ?? '?'
-    const groupKey  = `${typeLabel} ${rwyNumber(proc.runway)}`
-    if (!appchGroups[groupKey]) appchGroups[groupKey] = []
-    appchGroups[groupKey].push(key)
-  }
-
-  return { sidGroups, starGroups, appchGroups }
+// `raw` + DCB groups for the facility: navdata procedures with the user's
+// own procedures for that airport layered on top.
+function derive(baseRaw, icao) {
+  const raw = mergeProcedures(baseRaw, userProcs(), icao)
+  return { raw, ...(raw ? buildGroups(raw) : NO_GROUPS) }
 }
 
 export const useProceduresStore = create((set, get) => ({
   icao:        null,
-  raw:         null,
+  baseRaw:     null,   // navdata procedures as served, null when none
+  raw:         null,   // baseRaw + user procedures
   sidGroups:   {},
   starGroups:  {},
   appchGroups: {},
@@ -53,15 +30,16 @@ export const useProceduresStore = create((set, get) => ({
   loadForIcao: async (icao) => {
     if (!icao || get().icao === icao) return
     set({ loading: true })
+    let baseRaw = null
     try {
       const res = await fetch(`/api/navdata/procedures?icao=${encodeURIComponent(icao)}`)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const raw = await res.json()
-      set({ icao, raw, ...buildGroups(raw), visible: new Set(), loading: false })
+      // 404 just means no navdata procedures here; user ones may still exist.
+      if (res.ok) baseRaw = await res.json()
+      else if (res.status !== 404) throw new Error(`HTTP ${res.status}`)
     } catch (err) {
       console.error('[procedures] load error:', err.message)
-      set({ icao, raw: null, sidGroups: {}, starGroups: {}, appchGroups: {}, visible: new Set(), loading: false })
     }
+    set({ icao, baseRaw, ...derive(baseRaw, icao), visible: new Set(), loading: false })
   },
 
   toggleVisible: (key) => set((s) => {
@@ -83,8 +61,18 @@ export const useProceduresStore = create((set, get) => ({
   clearCommandProcs: () => set({ commandVisible: new Set() }),
 
   reset: () => set({
-    icao: null, raw: null,
-    sidGroups: {}, starGroups: {}, appchGroups: {},
+    icao: null, baseRaw: null, raw: null,
+    ...NO_GROUPS,
     visible: new Set(), commandVisible: new Set(), loading: false,
   }),
 }))
+
+// Re-merge whenever the active theatre's user procedures change (load,
+// edit, import, or another window's edit).
+useUserNavdataStore.subscribe((state, prev) => {
+  const next = state.byTheatre[state.theatre]?.procs
+  if (state.theatre === prev.theatre && next === prev.byTheatre[prev.theatre]?.procs) return
+  const { icao, baseRaw } = useProceduresStore.getState()
+  if (!icao) return
+  useProceduresStore.setState(derive(baseRaw, icao))
+})

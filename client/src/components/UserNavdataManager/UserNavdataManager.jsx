@@ -2,12 +2,15 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useUserNavdataStore } from '../../store/userNavdata.js'
 import { readImportFiles, finalizeRow, outsideShare } from '../../utils/userNavdataImport.js'
 import { normalizeFixId } from '../../utils/userFixes.js'
+import { rowsFromCandidates, makeFixLookup, makeNearestFix } from '../../utils/userProcedures.js'
+import { getTheatreAirports } from '../../utils/theatreAirports.js'
+import { ProceduresTab } from './UserNavdataProcedures.jsx'
 import './UserNavdataManager.css'
 
 // Fixes table rows rendered at once; the filter narrows anything beyond it.
 const FIX_ROW_LIMIT = 500
 
-const EMPTY = { fixes: [], maps: [] }
+const EMPTY = { fixes: [], maps: [], procs: [] }
 
 function geometrySummary(features) {
   const counts = {}
@@ -27,7 +30,7 @@ const fmtCoord = (v) => Number(v).toFixed(5)
 
 // ── Import tab ──────────────────────────────────────────────────────────────
 
-function ImportTab({ theatre, bbox, maps, onDone }) {
+function ImportTab({ theatre, bbox, maps, onDone, onProcRows }) {
   const upsertFixes = useUserNavdataStore((s) => s.upsertFixes)
   const addMap      = useUserNavdataStore((s) => s.addMap)
   const updateMap   = useUserNavdataStore((s) => s.updateMap)
@@ -45,10 +48,15 @@ function ImportTab({ theatre, bbox, maps, onDone }) {
     if (!fileList?.length) return
     setPhase('loading')
     const result = await readImportFiles(fileList, theatre)
-    setRows(result.rows.map((r) => ({ ...r, importFixes: true, importMap: true, replace: true })))
+    // Procedure files go to the PROCEDURES tab's import list.
+    const procFiles = result.rows.filter((r) => r.procs)
+    const rest = result.rows.filter((r) => !r.procs)
+    if (procFiles.length) onProcRows(procFiles.flatMap((r) => rowsFromCandidates(r.fileName, r.procs)))
+    if (procFiles.length && !rest.length && !result.skipped.length) { setPhase('idle'); return }
+    setRows(rest.map((r) => ({ ...r, importFixes: true, importMap: true, replace: true })))
     setSkipped(result.skipped)
     setPhase('preview')
-  }, [theatre])
+  }, [theatre, onProcRows])
 
   const patchRow = (key, patch) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)))
   const removeRow = (key) => setRows((rs) => rs.filter((r) => r.key !== key))
@@ -112,7 +120,7 @@ function ImportTab({ theatre, bbox, maps, onDone }) {
         onClick={() => fileRef.current?.click()}
       >
         <span className="unm-drop-icon">⬆</span>
-        <span className="unm-drop-label">Drop LotATC .json, GeoJSON, KML/KMZ, .csv fixes, a .miz, or a .zip of any of these</span>
+        <span className="unm-drop-label">Drop LotATC .json, GeoJSON, KML/KMZ, .csv fixes, a .miz, procedure .json, or a .zip of any of these</span>
         <span className="unm-drop-sub">or click to browse - imports into {theatre || '(no theatre selected)'}</span>
         <input
           ref={fileRef}
@@ -503,9 +511,18 @@ export function UserNavdataManager({ theatre: activeTheatre, onClose }) {
   const [theatre, setTheatre]   = useState(activeTheatre ?? null)
   const [tab, setTab]           = useState('import')
   const [status, setStatus]     = useState(null)   // { message } | { error }
-  const [baseFixIds, setBaseFixIds] = useState(() => new Set())
+  const [baseFixes, setBaseFixes] = useState([])
+  const [navaids, setNavaids]   = useState([])
+  const [airports, setAirports] = useState([])
+  const [pendingProcRows, setPendingProcRows] = useState(null)
 
   const data = useUserNavdataStore((s) => (theatre ? s.byTheatre[theatre] : null)) ?? EMPTY
+  const procs = data.procs ?? EMPTY.procs
+
+  const baseFixIds = useMemo(() => new Set(baseFixes.map((f) => normalizeFixId(f.id))), [baseFixes])
+  // User fixes first, so they win over navdata as they do on the scope.
+  const lookupFix  = useMemo(() => makeFixLookup([data.fixes, baseFixes, navaids]), [data.fixes, baseFixes, navaids])
+  const nearestFix = useMemo(() => makeNearestFix([data.fixes, baseFixes, navaids]), [data.fixes, baseFixes, navaids])
 
   useEffect(() => {
     const ac = new AbortController()
@@ -525,10 +542,19 @@ export function UserNavdataManager({ theatre: activeTheatre, onClose }) {
     if (!theatre) return
     ensureTheatre(theatre).catch((err) => setStatus({ error: err?.message ?? String(err) }))
     const ac = new AbortController()
-    fetch(`/api/navdata/fixes?theatre=${encodeURIComponent(theatre)}`, { signal: ac.signal })
+    const q = `theatre=${encodeURIComponent(theatre)}`
+    setBaseFixes([])
+    setNavaids([])
+    setAirports([])
+    fetch(`/api/navdata/fixes?${q}`, { signal: ac.signal })
       .then((r) => (r.ok ? r.json() : []))
-      .then((list) => setBaseFixIds(new Set(list.map((f) => normalizeFixId(f.id)))))
+      .then(setBaseFixes)
       .catch(() => {})
+    fetch(`/api/navdata/navaids?${q}`, { signal: ac.signal })
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setNavaids)
+      .catch(() => {})
+    getTheatreAirports(theatre).then((list) => { if (!ac.signal.aborted) setAirports(list) })
     return () => ac.abort()
   }, [theatre, ensureTheatre])
 
@@ -543,11 +569,17 @@ export function UserNavdataManager({ theatre: activeTheatre, onClose }) {
     if (!result.error) setTab(result.mapCount ? 'maps' : 'fixes')
   }
 
+  const onProcRows = useCallback((rows) => {
+    setPendingProcRows(rows)
+    setTab('procs')
+  }, [])
+  const onPendingTaken = useCallback(() => setPendingProcRows(null), [])
+
   return (
     <div className="unm-overlay">
       <div className="unm-modal">
         <div className="unm-header">
-          <span className="unm-title">USER FIXES &amp; MAPS</span>
+          <span className="unm-title">USER NAVDATA</span>
           <select className="unm-select" value={theatre ?? ''} onChange={(e) => { setTheatre(e.target.value); setStatus(null) }}>
             {theatres.map((t) => <option key={t} value={t}>{t}{t === activeTheatre ? ' (current)' : ''}</option>)}
           </select>
@@ -556,20 +588,37 @@ export function UserNavdataManager({ theatre: activeTheatre, onClose }) {
         </div>
 
         <div className="unm-tabs">
-          {[['import', 'IMPORT'], ['fixes', `FIXES (${data.fixes.length})`], ['maps', `VIDEO MAPS (${data.maps.length})`]].map(([key, label]) => (
+          {[
+            ['import', 'IMPORT'],
+            ['fixes', `FIXES (${data.fixes.length})`],
+            ['maps', `VIDEO MAPS (${data.maps.length})`],
+            ['procs', `PROCEDURES (${procs.length})`],
+          ].map(([key, label]) => (
             <button key={key} className={`unm-tab${tab === key ? ' active' : ''}`} onClick={() => setTab(key)}>{label}</button>
           ))}
         </div>
 
         {!theatre && <div className="unm-status">No theatre available</div>}
         {theatre && tab === 'import' && (
-          <ImportTab theatre={theatre} bbox={bboxes[theatre] ?? null} maps={data.maps} onDone={onImported} />
+          <ImportTab theatre={theatre} bbox={bboxes[theatre] ?? null} maps={data.maps} onDone={onImported} onProcRows={onProcRows} />
         )}
         {theatre && tab === 'fixes' && (
           <FixesTab theatre={theatre} fixes={data.fixes} baseFixIds={baseFixIds} onStatus={setStatus} />
         )}
         {theatre && tab === 'maps' && (
           <MapsTab theatre={theatre} maps={data.maps} onStatus={setStatus} />
+        )}
+        {theatre && tab === 'procs' && (
+          <ProceduresTab
+            theatre={theatre}
+            procs={procs}
+            airports={airports}
+            lookupFix={lookupFix}
+            nearestFix={nearestFix}
+            pendingRows={pendingProcRows}
+            onPendingTaken={onPendingTaken}
+            onStatus={setStatus}
+          />
         )}
 
         {status && (

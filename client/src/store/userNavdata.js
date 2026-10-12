@@ -1,6 +1,7 @@
-// User-added fixes and STARS video maps, per theatre. Persisted to IndexedDB
-// via utils/localDb.js — one `<theatre>|fix-list` record holding that
-// theatre's fixes, and one `<theatre>|map|<id>` record per video map.
+// User-added fixes, STARS video maps and procedures, per theatre. Persisted
+// to IndexedDB via utils/localDb.js — one `<theatre>|fix-list` record holding
+// that theatre's fixes, one `<theatre>|map|<id>` record per video map, and one
+// `<theatre>|proc|<ICAO>|<category>|<name>` record per procedure.
 // Local to this machine only; never sent to WebRTC or relay peers.
 //
 // Only theatres actually looked at are held in memory: the active one (set
@@ -13,9 +14,13 @@ import {
   loadPrefix, putRecords, deleteRecords, onRemoteChange, describeDbError,
 } from '../utils/localDb.js'
 import { upsertFixList, normalizeFixId, isValidLatLon } from '../utils/userFixes.js'
+import { finalizeProc, procKey } from '../utils/userProcedures.js'
 
 const fixListKey = (theatre) => `${theatre}|fix-list`
 const mapRecordKey = (theatre, id) => `${theatre}|map|${id}`
+const procRecordKey = (theatre, key) => `${theatre}|proc|${key}`
+
+const sortProcs = (procs) => procs.sort((a, b) => procKey(a).localeCompare(procKey(b)))
 
 // Default DCB button text for a newly imported map: the file/layer name,
 // uppercased, separators turned into spaces, capped to what fits on two
@@ -34,12 +39,14 @@ async function readTheatre(theatre) {
   const rows  = await loadPrefix(`${theatre}|`)
   let fixes   = []
   const maps  = []
+  const procs = []
   for (const [key, value] of rows) {
     if (key === fixListKey(theatre)) fixes = Array.isArray(value) ? value : []
     else if (key.startsWith(`${theatre}|map|`)) maps.push(value)
+    else if (key.startsWith(`${theatre}|proc|`)) procs.push(value)
   }
   maps.sort((a, b) => (a.addedAt ?? 0) - (b.addedAt ?? 0))
-  return { fixes, maps }
+  return { fixes, maps, procs: sortProcs(procs) }
 }
 
 function newId() {
@@ -62,7 +69,7 @@ export const useUserNavdataStore = create((set, get) => {
   async function commitNow(theatre, write, apply) {
     try {
       await get().ensureTheatre(theatre)
-      const current = get().byTheatre[theatre] ?? { fixes: [], maps: [] }
+      const current = get().byTheatre[theatre] ?? { fixes: [], maps: [], procs: [] }
       const next = await write(current)
       set((s) => ({ byTheatre: { ...s.byTheatre, [theatre]: apply(current, next) }, lastError: null }))
       return null
@@ -84,7 +91,7 @@ export const useUserNavdataStore = create((set, get) => {
 
   return {
     theatre:   null,   // the theatre the scopes are showing
-    byTheatre: {},     // { [theatre]: { fixes: [...], maps: [...] } } — loaded theatres only
+    byTheatre: {},     // { [theatre]: { fixes: [...], maps: [...], procs: [...] } } — loaded theatres only
     lastError: null,
 
     setActiveTheatre: (theatre) => {
@@ -156,6 +163,46 @@ export const useUserNavdataStore = create((set, get) => {
       return new Set(ids)
     }, (cur, drop) => ({ ...cur, maps: cur.maps.filter((m) => !drop.has(m.id)) })),
 
+    // ── Procedures ───────────────────────────────────────────────────────
+    // Saves each procedure (see utils/userProcedures.js finalizeProc), replacing
+    // any user procedure with the same airport + category + name. Throws out
+    // the whole batch if any one is invalid.
+    upsertProcs: (theatre, procs) => commit(theatre, async (cur) => {
+      const existing = new Map(cur.procs.map((p) => [procKey(p), p]))
+      const now = Date.now()
+      const saved = procs.map((p) => {
+        const proc = finalizeProc(p)
+        return { ...proc, addedAt: existing.get(procKey(proc))?.addedAt ?? now }
+      })
+      await putRecords(saved.map((p) => [procRecordKey(theatre, procKey(p)), p]))
+      return saved
+    }, (cur, saved) => {
+      const byKey = new Map(cur.procs.map((p) => [procKey(p), p]))
+      for (const p of saved) byKey.set(procKey(p), p)
+      return { ...cur, procs: sortProcs([...byKey.values()]) }
+    }),
+
+    // Replaces the procedure stored under `oldKey`; a changed airport,
+    // category or name moves it (replacing whatever already held that key).
+    updateProc: (theatre, oldKey, patch) => commit(theatre, async (cur) => {
+      const old = cur.procs.find((p) => procKey(p) === oldKey)
+      if (!old) throw new Error('Procedure not found')
+      const proc = { ...finalizeProc({ ...old, ...patch }), addedAt: old.addedAt }
+      const key  = procKey(proc)
+      await putRecords([[procRecordKey(theatre, key), proc]])
+      if (key !== oldKey) await deleteRecords([procRecordKey(theatre, oldKey)])
+      return { oldKey, proc }
+    }, (cur, { oldKey, proc }) => {
+      const key = procKey(proc)
+      const rest = cur.procs.filter((p) => procKey(p) !== oldKey && procKey(p) !== key)
+      return { ...cur, procs: sortProcs([...rest, proc]) }
+    }),
+
+    removeProcs: (theatre, keys) => commit(theatre, async () => {
+      await deleteRecords(keys.map((k) => procRecordKey(theatre, k)))
+      return new Set(keys)
+    }, (cur, drop) => ({ ...cur, procs: cur.procs.filter((p) => !drop.has(procKey(p))) })),
+
     clearError: () => set({ lastError: null }),
   }
 })
@@ -166,7 +213,7 @@ onRemoteChange((changedKeys) => {
   const theatres = new Set()
   for (const key of changedKeys) {
     const [theatre, kind] = key.split('|')
-    if ((kind === 'fix-list' || kind === 'map') && byTheatre[theatre]) theatres.add(theatre)
+    if ((kind === 'fix-list' || kind === 'map' || kind === 'proc') && byTheatre[theatre]) theatres.add(theatre)
   }
   for (const theatre of theatres) {
     ensureTheatre(theatre, true).catch((err) => console.error('[userNavdata] reload failed:', describeDbError(err)))

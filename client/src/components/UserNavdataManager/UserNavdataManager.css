@@ -16,7 +16,7 @@
   color: #CCC;
   display: flex;
   flex-direction: column;
-  width: 640px;
+  width: 780px;
   max-width: calc(100vw - 32px);
   height: 70vh;
   max-height: 80vh;
@@ -149,6 +149,7 @@
   padding: 0 2px;
 }
 .unm-link:hover { color: #99BBEE; }
+.unm-link:disabled { color: #333; cursor: default; }
 
 .unm-x {
   background: transparent;
@@ -328,3 +329,68 @@
   padding: 3px 8px;
 }
 .unm-map-row:hover { background: #0D150D; }
+
+/* ── Procedures ─────────────────────────────────────────── */
+.unm-proc-row {
+  display: grid;
+  grid-template-columns: 16px 44px 40px 90px 90px 120px 1fr;
+  gap: 0 8px;
+  align-items: center;
+  padding: 2px 8px;
+}
+.unm-proc-row:hover { background: #0D150D; }
+
+.unm-wrap { flex-wrap: wrap; }
+.unm-w-id    { width: 64px; }
+.unm-w-rwy   { width: 52px; }
+.unm-w-name  { width: 96px; }
+.unm-w-label { width: 120px; }
+.unm-w-trans { width: 150px; }
+
+.unm-note {
+  padding: 3px 8px;
+  font-size: 9px;
+  border-bottom: 1px solid #181818;
+}
+
+.unm-trans {
+  margin: 6px 8px;
+  border: 1px solid #1E1E1E;
+}
+
+.unm-trans-head,
+.unm-trans-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+}
+.unm-trans-head { border-bottom: 1px solid #181818; }
+.unm-trans-foot { border-top: 1px solid #141414; }
+
+.unm-trans-add { padding: 2px 8px 8px; }
+
+.unm-leg-row {
+  display: grid;
+  grid-template-columns: 16px 66px minmax(0, 1fr) 150px 92px 36px 16px 52px;
+  gap: 0 6px;
+  align-items: center;
+  padding: 2px 6px;
+}
+.unm-leg-row:hover { background: #0D150D; }
+
+.unm-leg-pos,
+.unm-leg-alt,
+.unm-leg-spd {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+}
+
+.unm-errors {
+  padding: 4px 8px;
+  border-top: 1px solid #3A1A1A;
+  background: #140A0A;
+  color: #CC4444;
+  font-size: 9px;
+}

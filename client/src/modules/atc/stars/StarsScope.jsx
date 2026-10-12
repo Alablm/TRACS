@@ -60,6 +60,8 @@ import { useAssociationStore }  from '../../../store/association.js'
 import { usePresetsStore }  from '../../../store/presets.js'
 import { useFpeStore }      from '../../../store/fpe.js'
 import { useNavdataStore }      from '../../../store/navdata.js'
+import { useUserNavdataStore }  from '../../../store/userNavdata.js'
+import { mergeProcedures }      from '../../../utils/userProcedures.js'
 import { nmBetween }            from '../../../store/runways.js'
 import { useFlightPlansStore } from '../../../store/flightPlans.js'
 import { findFlightPlanAid } from '../../../utils/callsign.js'
@@ -114,6 +116,7 @@ export default function StarsScope() {
   const toggleHighlight = (uid) =>
     setHighlightedUids(s => { const n = new Set(s); n.has(uid) ? n.delete(uid) : n.add(uid); return n })
   const [routeProcData, setRouteProcData] = useState({})  // { [icao]: raw | null }
+  const userProcs = useUserNavdataStore((s) => s.byTheatre[s.theatre]?.procs)
 
   const routeDisplayedUids = useMemo(
     () => new Set(windowSettings?.routeDisplayedUids ?? []),
@@ -575,8 +578,10 @@ export default function StarsScope() {
     for (const uid of routeDisplayedUids) {
       const fpl  = findPlanForUid(uid, allUnits, plans)
       if (!fpl) continue
-      const depProcs  = fpl.dep  ? (routeProcData[fpl.dep.toUpperCase()]  ?? null) : null
-      const destProcs = fpl.dest ? (routeProcData[fpl.dest.toUpperCase()] ?? null) : null
+      const dep  = fpl.dep?.toUpperCase()
+      const dest = fpl.dest?.toUpperCase()
+      const depProcs  = dep  ? mergeProcedures(routeProcData[dep]  ?? null, userProcs, dep)  : null
+      const destProcs = dest ? mergeProcedures(routeProcData[dest] ?? null, userProcs, dest) : null
       routesByUid.set(uid, resolveRoute({
         fpl,
         lookupFix: navdata.lookupFix,
@@ -587,7 +592,7 @@ export default function StarsScope() {
     }
 
     drawRoute(ctx, view, routesByUid, briteB, csMap, activeColors)
-  }, [routeDisplayedUids, routeProcData, view, airways, mapPalettes,
+  }, [routeDisplayedUids, routeProcData, userProcs, view, airways, mapPalettes,
       windowSettings?.aspColorIdx, windowSettings?.briteMapB, windowSettings?.csMap])
 
   // ── Render compass rose ───────────────────────────────────────────
