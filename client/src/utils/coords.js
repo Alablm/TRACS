@@ -4,6 +4,7 @@
 // matches the drawn grid lines exactly.
 
 import { utmZoneNumber, utmZoneParams, mgrs100kSquareId, latBand } from './mgrs.js'
+import { getProjectionParams } from './magvar.js'
 import { tmForward } from './transverseMercator.js'
 
 function pad(n, width) {
@@ -37,6 +38,17 @@ export function formatDDM(lat, lng, minDecimals = 3) {
   return `${fmt(lat, 2, 'N', 'S')} ${fmt(lng, 3, 'E', 'W')}`
 }
 
+export function formatDecimal(lat, lng, decimals = 6) {
+  return `${lat.toFixed(decimals)}, ${lng.toFixed(decimals)}`
+}
+
+export function formatMetricCoordinates(lat, lng, theatre) {
+  const params = getProjectionParams(theatre)
+  if (!params) return null
+  const { easting, northing } = tmForward(lat, lng, params)
+  return `X: ${Math.round(northing)} m, Y: ${Math.round(easting)} m`
+}
+
 // Real-world MGRS at 1m precision (5-digit easting/northing).
 export function formatMGRS(lat, lng) {
   const zone = utmZoneNumber(lng)
@@ -47,6 +59,14 @@ export function formatMGRS(lat, lng) {
   const e = Math.round(easting)  % 100000
   const n = Math.round(northing) % 100000
   return `${zone}${latBand(lat)} ${sq} ${pad(e, 5)} ${pad(n, 5)}`
+}
+
+export function formatCoordinates(lat, lng, format = 'dms', theatre) {
+  if (format === 'ddm') return formatDDM(lat, lng)
+  if (format === 'decimal') return formatDecimal(lat, lng)
+  if (format === 'mgrs') return formatMGRS(lat, lng)
+  if (format === 'metric') return formatMetricCoordinates(lat, lng, theatre)
+  return formatDMS(lat, lng)
 }
 
 // ICAO Item-15 route-string point: DDMM(N/S)DDDMM(E/W), whole minutes, no

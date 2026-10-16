@@ -6,6 +6,7 @@ export const MODULE = {
   CATCC: 'CATCC',
   AIC:   'AIC',
   ABM:   'ABM',
+  TACAS: 'TACAS',
 }
 
 export const POSITION_MODE = {

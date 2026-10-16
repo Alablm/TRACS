@@ -9,6 +9,7 @@ import { applyStatusBoardUpdate } from '../store/statusBoard.js'
 import { applyAicDeclaration, applyAicDeclarationsReset, applyAicAutoDeclareMode } from '../store/aic.js'
 import { applyAbmDeclaration, applyAbmDeclarationsReset, applyAbmAutoDeclareMode } from '../store/abm.js'
 import { applyAbmMissionIffSet, applyAbmMissionManualFlightSet, applyAbmMissionFlightAlt } from '../store/abmMission.js'
+import { useTacasStore } from '../store/tacas.js'
 import { getMyControllerId } from '../utils/myControllerId.js'
 
 export function handleModuleMessage(msg) {
@@ -31,6 +32,29 @@ export function handleModuleMessage(msg) {
   if (module === 'CATCC') handleCatcc(type, payload)
   if (module === 'AIC')   handleAic(type, payload)
   if (module === 'ABM')   handleAbm(type, payload)
+  if (module === 'TACAS') handleTacas(type, payload, fromPosition, timestamp)
+}
+
+function handleTacas(type, payload, fromPosition, timestamp) {
+  const tacas = useTacasStore.getState()
+  switch (type) {
+    case 'TACAS_MARKER_UPSERT':
+      tacas.upsertMarker(payload.marker)
+      break
+    case 'TACAS_MARKER_REMOVE':
+      tacas.removeMarker(payload.id)
+      break
+    case 'TACAS_CHAT_MESSAGE':
+      tacas.addMessage({ ...payload, from: fromPosition, timestamp: timestamp ?? payload.timestamp })
+      break
+    case 'TACAS_AIRCREW_CHECK_IN':
+      tacas.upsertAircrewCheckIn({
+        ...payload.checkIn,
+        from: fromPosition,
+        updatedAt: timestamp ?? payload.checkIn?.updatedAt,
+      })
+      break
+  }
 }
 
 // ── Shared track/handoff/point-out handler (ATC + CATCC) ─────────────────────

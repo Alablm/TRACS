@@ -32,6 +32,7 @@ import { LnmSetupDialog } from './components/LnmSetup/LnmSetupDialog'
 import { UserNavdataManager } from './components/UserNavdataManager/UserNavdataManager'
 import { RightTabStrip } from './components/RightTabStrip'
 import { AssociationOwner } from './components/AssociationOwner'
+import TacasModule from './modules/tacas/TacasModule'
 
 const CL_VISIBLE_KEY  = 'tracs.cl.visible'
 const MSG_VISIBLE_KEY = 'tracs.msg.visible'
@@ -45,6 +46,7 @@ const MODULE_DOCS_PAGE = {
   [MODULE.CATCC]: 'catcc',
   [MODULE.AIC]:   'aic',
   [MODULE.ABM]:   'abm',
+  [MODULE.TACAS]: 'tacas',
 }
 
 function getSavedProfile() {
@@ -207,6 +209,7 @@ export function App() {
       }
       if (e.ctrlKey && e.key === 'm') {
         e.preventDefault()
+        if (useSessionStore.getState().activeModule === MODULE.TACAS) return
         setMsgVisible((v) => {
           localStorage.setItem(MSG_VISIBLE_KEY, String(!v))
           return !v
@@ -465,6 +468,7 @@ export function App() {
   const hasCatcc = activeModule === MODULE.CATCC
   const hasAic   = activeModule === MODULE.AIC
   const hasAbm   = activeModule === MODULE.ABM
+  const hasTacas = activeModule === MODULE.TACAS
 
   const docsPage   = MODULE_DOCS_PAGE[activeModule] ?? 'index'
   const docsAnchor = hasAtc && activeOds === 'asdex' ? '#asde-x-ground-radar' : ''
@@ -567,7 +571,7 @@ export function App() {
         {/* Unread message indicator */}
         {(() => {
           const totalDm = Object.values(unreadDm).reduce((a, b) => a + b, 0)
-          if (!msgVisible && (unreadGeneral > 0 || totalDm > 0)) {
+          if (!hasTacas && !msgVisible && (unreadGeneral > 0 || totalDm > 0)) {
             return (
               <span
                 style={{ color: '#cc9900', cursor: 'pointer', letterSpacing: '0.06em' }}
@@ -988,7 +992,9 @@ export function App() {
           </div>
         )}
 
-        {!hasAtc && !hasCatcc && !hasAic && !hasAbm && (
+        {hasTacas && <TacasModule />}
+
+        {!hasAtc && !hasCatcc && !hasAic && !hasAbm && !hasTacas && (
           <div style={{ color: '#333', fontFamily: 'Roboto Mono, monospace', padding: '40px', fontSize: '0.8rem' }}>
             No active display module.
           </div>
@@ -1008,11 +1014,11 @@ export function App() {
           />
         )}
 
-        <Messages
+        {!hasTacas && <Messages
           visible={msgVisible}
           onClose={() => { setMsgVisible(false); localStorage.setItem(MSG_VISIBLE_KEY, 'false') }}
           rightInset={panelRightInset}
-        />
+        />}
 
         {/* ABM focus panels — mounted unconditionally (not gated on hasAbm) so a
             focus panel keeps tracking its contact even after switching modules,

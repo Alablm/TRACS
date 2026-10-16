@@ -44,7 +44,7 @@ If a Relay Port is set, TRACS checks in parallel whether relay sync is available
 
 ## 2. Sign in to a position
 
-Once connected, pick a **Module** — ATC, CATCC, AIC, or ABM — and fill in that module's position fields:
+Once connected, pick a **Module** — ATC, CATCC, AIC, ABM, or TACAS — and fill in that module's position fields:
 
 | Module | Fields |
 |---|---|
@@ -52,10 +52,11 @@ Once connected, pick a **Module** — ATC, CATCC, AIC, or ABM — and fill in th
 | [CATCC](catcc.md) | Carrier (detected from live unit data — must be present in the mission), position (Marshal/Approach/Departure/Tower), frequency |
 | [AIC](aic.md) | Callsign, frequency |
 | [ABM](abm.md) | Callsign, frequency |
+| [TACAS](tacas.md) | Position type (JTAC by default), callsign (required for both types) |
 
-Frequency must fall in VHF (118.000–136.975) or UHF (225.000–399.975).
+For ATC, CATCC, AIC, and ABM, frequency must fall in VHF (118.000–136.975) or UHF (225.000–399.975). TACAS does not use a radio frequency.
 
-TRACS checks the frequency against other controllers already in the session. If another controller with a different facility/callsign or position is already on it, sign-in fails with "Frequency X MHz is already in use by <position>." If that check can't reach the session list, sign-in proceeds and the check happens during the handshake with other controllers instead.
+For frequency-using modules, TRACS checks the frequency against other controllers already in the session. If another controller with a different facility/callsign or position is already on it, sign-in fails with "Frequency X MHz is already in use by <position>." If that check can't reach the session list, sign-in proceeds and the check happens during the handshake with other controllers instead.
 
 For ATC, selecting a facility auto-fills its ICAO/LID from local navdata when available; otherwise type it manually (4 characters max). Frequency is also suggested from navdata when a facility+position match is found, and you can override it.
 
@@ -76,7 +77,7 @@ Click **Sign In**. This establishes your position, registers you with other cont
 | Shortcut | Effect |
 |---|---|
 | `Ctrl+L` | Show or hide the Controller List (every signed-in controller and position) |
-| `Ctrl+M` | Show or hide Messages, a chat window shared across all modules. Type to message your own module's controllers; `.chat <POSITION>` sends a direct message; `/ <text>` broadcasts to everyone |
+| `Ctrl+M` | Show or hide Messages, a chat window shared across modules. Type to message your module's controllers; `.chat <POSITION>` sends a direct message; `/ <text>` broadcasts to everyone. TACAS has its own isolated chat in the TACAS workspace |
 
 **Side panels:** a thin tab strip runs down the right edge of the screen. Each module has its own tabs:
 

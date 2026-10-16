@@ -110,7 +110,9 @@ function buildGroups(registry, peers, airbases, myFacilityId, myPositionName, ac
 
   const seen    = new Set()
   const deduped = allEntries.filter((e) => {
-    const key = `${e.facility}::${e.suffix}`
+    const key = e.suffix === 'TACAS'
+      ? `${e.facility}::${e.suffix}::${e.positionName}`
+      : `${e.facility}::${e.suffix}`
     if (seen.has(key)) return false
     seen.add(key)
     return true
@@ -124,6 +126,7 @@ function buildGroups(registry, peers, airbases, myFacilityId, myPositionName, ac
 
   const aicEntries   = []
   const abmEntries   = []
+  const tacasEntries = []
   const catccGroups  = []
   const atcGroups    = []
   const otherEntries = [] // CTR — kept as its own trailing section, unchanged from before
@@ -133,6 +136,8 @@ function buildGroups(registry, peers, airbases, myFacilityId, myPositionName, ac
       aicEntries.push(...entries)
     } else if (entries.every((e) => e.suffix === 'ABM')) {
       abmEntries.push(...entries)
+    } else if (entries.every((e) => e.suffix === 'TACAS')) {
+      tacasEntries.push(...entries)
     } else if (entries.every((e) => e.suffix === 'CTR')) {
       otherEntries.push(...entries)
     } else if (Object.values(CARRIER_TYPES).some((ct) => ct.facilityId === facId)) {
@@ -178,14 +183,16 @@ function buildGroups(registry, peers, airbases, myFacilityId, myPositionName, ac
     CATCC: sortFacilityGroups(catccGroups),
     AIC:   activeModule === 'AIC' ? pinSelfFirst(aicEntries) : aicEntries,
     ABM:   activeModule === 'ABM' ? pinSelfFirst(abmEntries) : abmEntries,
+    TACAS: activeModule === 'TACAS' ? pinSelfFirst(tacasEntries) : tacasEntries,
   }
 
   let moduleOrder
-  if (activeModule === 'ATC')        moduleOrder = ['ATC', 'CATCC', 'ABM', 'AIC']
-  else if (activeModule === 'CATCC') moduleOrder = ['CATCC', 'ATC', 'ABM', 'AIC']
-  else if (activeModule === 'AIC')   moduleOrder = ['AIC', 'ABM', 'CATCC', 'ATC']
-  else if (activeModule === 'ABM')   moduleOrder = ['ABM', 'AIC', 'CATCC', 'ATC']
-  else                                moduleOrder = ['ABM', 'AIC', 'CATCC', 'ATC'] // no active module yet
+  if (activeModule === 'ATC')        moduleOrder = ['ATC', 'CATCC', 'ABM', 'AIC', 'TACAS']
+  else if (activeModule === 'CATCC') moduleOrder = ['CATCC', 'ATC', 'ABM', 'AIC', 'TACAS']
+  else if (activeModule === 'AIC')   moduleOrder = ['AIC', 'ABM', 'CATCC', 'ATC', 'TACAS']
+  else if (activeModule === 'ABM')   moduleOrder = ['ABM', 'AIC', 'CATCC', 'ATC', 'TACAS']
+  else if (activeModule === 'TACAS') moduleOrder = ['TACAS', 'ABM', 'AIC', 'CATCC', 'ATC']
+  else                              moduleOrder = ['ABM', 'AIC', 'CATCC', 'ATC', 'TACAS'] // no active module yet
 
   return { sections, moduleOrder, myFacilityId, otherEntries }
 }

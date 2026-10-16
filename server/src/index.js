@@ -83,7 +83,7 @@ const CSP = [
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self' data:",
-  "img-src 'self' data: blob:",
+  "img-src 'self' data: blob: https://server.arcgisonline.com",
   "media-src 'self' data: blob:",
   "connect-src 'self' ws: wss:",
   "worker-src 'self' blob:",

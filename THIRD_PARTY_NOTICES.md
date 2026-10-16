@@ -19,6 +19,14 @@ The following databases are derived from OpenStreetMap data and are made availab
 
 Made with Natural Earth. Free vector and raster map data @ [naturalearthdata.com](https://www.naturalearthdata.com/). The data is in the public domain. It's used for boundaries and land in `geo.json`, and for water in `water.json` and `water.png`.
 
+### Esri World Imagery
+
+The TACAS basemap fallback is provided by Esri World Imagery. For supported DCS Olympus terrains, it is rendered beneath the custom imagery to fill areas without custom tile coverage. Imagery attribution: Esri, Maxar, Earthstar Geographics, and the GIS User Community. The service requires an internet connection and is subject to [Esri's terms](https://www.esri.com/en-us/legal/terms/full-master-agreement).
+
+### DCS Olympus terrain imagery
+
+For supported mission theatres, the TACAS basemap uses custom terrain imagery served by [DCS Olympus](https://maps.dcsolympus.com/). Esri World Imagery remains the default for unsupported theatres and for custom tiles that are unavailable.
+
 ## Terrain data
 
 Elevation data (`server/data/elevation.db`, and the relief, terrain and MVA layers derived from it) comes from the Terrain Tiles dataset hosted on AWS (`elevation-tiles-prod`), originally produced by Mapzen's Joerd project. It requires the following attribution:

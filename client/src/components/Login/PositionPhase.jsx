@@ -8,6 +8,7 @@ import { initWebrtc } from '../../webrtc/client'
 import { CARRIER_TYPES } from '../../utils/carriers'
 import { getIcaoMapping } from '../../utils/icaoMapping.js'
 import { log } from '../../utils/log.js'
+import { getTacasPositionName } from '../../modules/tacas/tacasHelpers.js'
 
 const SUFFIX_TO_NAVDATA_ROLE = {
   TWR: 'twr',
@@ -104,6 +105,11 @@ export function PositionPhase({ onSignedIn }) {
   )
   const [abmFrequency, setAbmFrequency] = useState(
     () => localStorage.getItem('tracs.abm.lastFrequency') ?? ''
+  )
+
+  const [tacasPositionType, setTacasPositionType] = useState('JTAC')
+  const [tacasCallsign, setTacasCallsign] = useState(
+    () => localStorage.getItem('tracs.tacas.lastCallsign') ?? ''
   )
 
   // ── Session password (shared across modules) ───────────────────────
@@ -399,39 +405,44 @@ export function PositionPhase({ onSignedIn }) {
       if (!abmCallsign.trim())          { setError('Callsign is required.');                                                      return }
       if (!abmFrequency.trim())         { setError('Frequency is required.');                                                     return }
       if (!validateFreq(abmFrequency))  { setError('Frequency must be VHF (118.000–136.975) or UHF (225.000–399.975).');         return }
+    } else if (selectedModule === MODULE.TACAS && !tacasCallsign.trim()) {
+      setError('Callsign is required.')
+      return
     }
 
-    // Pre-flight frequency deconfliction against the server's current client list.
-    // Same facility+suffix = same controllerId = allowed to share a frequency.
-    const freqCheck = selectedModule === MODULE.ATC   ? parseFloat(frequency).toFixed(3)
+    if (selectedModule !== MODULE.TACAS) {
+      // Pre-flight frequency deconfliction against the server's current client list.
+      // Same facility+suffix = same controllerId = allowed to share a frequency.
+      const freqCheck = selectedModule === MODULE.ATC   ? parseFloat(frequency).toFixed(3)
                     : selectedModule === MODULE.CATCC  ? parseFloat(catccFrequency).toFixed(3)
                     : selectedModule === MODULE.AIC     ? parseFloat(aicFrequency).toFixed(3)
                     :                                    parseFloat(abmFrequency).toFixed(3)
-    const facCheck  = selectedModule === MODULE.ATC   ? facilityId.toUpperCase()
+      const facCheck  = selectedModule === MODULE.ATC   ? facilityId.toUpperCase()
                     : selectedModule === MODULE.CATCC  ? catccFacilityId
                     : selectedModule === MODULE.AIC     ? aicCallsign.trim().toUpperCase()
                     :                                    abmCallsign.trim().toUpperCase()
-    const sufCheck  = selectedModule === MODULE.ATC   ? positionSuffix
+      const sufCheck  = selectedModule === MODULE.ATC   ? positionSuffix
                     : selectedModule === MODULE.CATCC  ? catccSuffix
                     : selectedModule === MODULE.AIC     ? 'AIC'
                     :                                    'ABM'
-    try {
-      const res = await fetch('/api/state/session')
-      if (res.ok) {
-        const state = await res.json()
-        const peers = state.clientList ?? []
-        const conflict = peers.find((c) => {
-          if (!c.frequency) return false
-          if (parseFloat(c.frequency).toFixed(3) !== freqCheck) return false
-          return c.facility !== facCheck || c.suffix !== sufCheck
-        })
-        if (conflict) {
-          setError(`Frequency ${freqCheck} MHz is already in use by ${conflict.position}.`)
-          return
+      try {
+        const res = await fetch('/api/state/session')
+        if (res.ok) {
+          const state = await res.json()
+          const peers = state.clientList ?? []
+          const conflict = peers.find((c) => {
+            if (!c.frequency) return false
+            if (parseFloat(c.frequency).toFixed(3) !== freqCheck) return false
+            return c.facility !== facCheck || c.suffix !== sufCheck
+          })
+          if (conflict) {
+            setError(`Frequency ${freqCheck} MHz is already in use by ${conflict.position}.`)
+            return
+          }
         }
+      } catch {
+        // Pre-flight unavailable — proceed; the host's HANDSHAKE check is the fallback.
       }
-    } catch {
-      // Pre-flight unavailable — proceed; the host's HANDSHAKE check is the fallback.
     }
 
     setSigningIn(true)
@@ -533,6 +544,15 @@ setPosition({ mode: POSITION_MODE.CONFIGURED, name: callsign })
         suffix:    'ABM',
         frequency: formattedFreq,
       })
+    } else if (selectedModule === MODULE.TACAS) {
+      const positionName = getTacasPositionName(tacasCallsign, tacasPositionType)
+      localStorage.setItem('tracs.tacas.lastCallsign', tacasCallsign.trim().toUpperCase())
+      setPosition({ mode: POSITION_MODE.CONFIGURED, name: positionName })
+      setFacility({
+        facilityType: 'tacas', facilityId: positionName, facilityName: positionName,
+        positionTypeName: tacasPositionType, positionSuffix: 'TACAS',
+      })
+      registerPendingController(positionName, { facility: 'TACAS', suffix: 'TACAS', frequency: '' })
     }
 
     setActiveModule(selectedModule)
@@ -561,6 +581,8 @@ setPosition({ mode: POSITION_MODE.CONFIGURED, name: callsign })
     } else if (selectedModule === MODULE.ABM) {
       rtcPosition  = abmCallsign.trim().toUpperCase()
       rtcFrequency = parseFloat(abmFrequency).toFixed(3)
+    } else if (selectedModule === MODULE.TACAS) {
+      rtcPosition = getTacasPositionName(tacasCallsign, tacasPositionType)
     }
     let rtcFacility = ''
     let rtcSuffix   = ''
@@ -576,6 +598,9 @@ setPosition({ mode: POSITION_MODE.CONFIGURED, name: callsign })
     } else if (selectedModule === MODULE.ABM) {
       rtcFacility = abmCallsign.trim().toUpperCase()
       rtcSuffix   = 'ABM'
+    } else if (selectedModule === MODULE.TACAS) {
+      rtcFacility = 'TACAS'
+      rtcSuffix   = 'TACAS'
     }
     initWebrtc({ olympusUrl, password: sessionPassword, relayPassword, coalition, position: rtcPosition, module: selectedModule, frequency: rtcFrequency, facility: rtcFacility, suffix: rtcSuffix })
   }
@@ -895,6 +920,35 @@ setPosition({ mode: POSITION_MODE.CONFIGURED, name: callsign })
         </>
       )}
 
+      {selectedModule === MODULE.TACAS && (
+        <>
+          <section>
+            <label htmlFor="login-tacas-position">Position</label>
+            <select
+              id="login-tacas-position"
+              value={tacasPositionType}
+              onChange={(e) => setTacasPositionType(e.target.value)}
+              disabled={signingIn}
+            >
+              <option value="JTAC">JTAC</option>
+              <option value="AIRCREW">Aircrew</option>
+            </select>
+          </section>
+          <section>
+            <label htmlFor="login-tacas-callsign">Callsign</label>
+            <input
+              id="login-tacas-callsign"
+              type="text"
+              value={tacasCallsign}
+              onChange={(e) => setTacasCallsign(e.target.value.toUpperCase())}
+              placeholder={tacasPositionType === 'AIRCREW' ? 'RAVEN11' : 'JTAC'}
+              maxLength={32}
+              disabled={signingIn}
+            />
+          </section>
+        </>
+      )}
+
       {/* ── Session password (P2P fallback only — no function for relay-hosted
           sync) ────────────────────────────────────────────────────────── */}
       {!syncCapable && (
@@ -925,4 +979,3 @@ setPosition({ mode: POSITION_MODE.CONFIGURED, name: callsign })
     </form>
   )
 }
-

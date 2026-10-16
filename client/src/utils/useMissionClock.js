@@ -18,6 +18,19 @@ export function useMissionClock() {
   const [utcSeconds,   setUtcSeconds]   = useState(null) // seconds since UTC midnight
   const [localSeconds, setLocalSeconds] = useState(null) // seconds since theatre-local midnight
 
+  function formatTimeAt(timestamp, local = false) {
+    const sync = syncRef.current
+    if (!sync || !Number.isFinite(timestamp)) return null
+    const elapsed = (timestamp - sync.wallMs) / 1000
+    const utc = ((Math.floor(sync.missionSecondsUtc + elapsed) % 86400) + 86400) % 86400
+    const total = local ? ((utc + sync.offsetSeconds) % 86400 + 86400) % 86400 : utc
+    const hours = Math.floor(total / 3600)
+    const minutes = Math.floor((total % 3600) / 60)
+    const seconds = Math.floor(total % 60)
+    const suffix = local ? 'L' : 'Z'
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}${suffix}`
+  }
+
   useEffect(() => {
     const t = mission?.mission?.dateAndTime?.time
     const d = mission?.mission?.dateAndTime?.date
@@ -65,5 +78,5 @@ export function useMissionClock() {
     return () => clearInterval(id)
   }, [])
 
-  return { timeStr, dateStr, localTimeStr, localDateStr, utcSeconds, localSeconds }
+  return { timeStr, dateStr, localTimeStr, localDateStr, utcSeconds, localSeconds, formatTimeAt }
 }

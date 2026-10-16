@@ -7,6 +7,7 @@ import { useFlightPlansStore } from '../store/flightPlans.js'
 import { useStatusBoardStore, applyStatusBoardUpdate, registerStatusBoardBroadcast, buildStatusBoardPayload } from '../store/statusBoard.js'
 import { useAicStore, registerAicBroadcast, applyAicStateDump } from '../store/aic.js'
 import { useAbmStore, registerAbmBroadcast, applyAbmStateDump } from '../store/abm.js'
+import { useTacasStore, applyTacasStateDump } from '../store/tacas.js'
 import { registerAbmMissionBroadcast } from '../store/abmMission.js'
 import { useRoeStore, registerRoeBroadcast, applyRoe } from '../store/roe.js'
 import {
@@ -397,6 +398,15 @@ function buildDump(mod) {
       pointOuts:      atc.pointOuts,
     }
   }
+  if (mod === 'TACAS') {
+    const tacas = useTacasStore.getState()
+    return {
+      ...base,
+      markers: tacas.markers,
+      messages: tacas.messages,
+      aircrewCheckIns: tacas.aircrewCheckIns,
+    }
+  }
   return base
 }
 
@@ -515,6 +525,7 @@ function applyDump(mod, payload) {
     if (mod === 'CATCC') applyCatccDump(payload)
     if (mod === 'AIC')   applyAicStateDump(payload)
     if (mod === 'ABM')   applyAbmStateDump(payload)
+    if (mod === 'TACAS') applyTacasStateDump(payload)
     // Applied after the per-module dump above, since applyAtcDump/applyCatccDump
     // apply their own (unrelated) state via applyStateDump() before this point.
     if (payload.callsignOverrides) {
@@ -868,6 +879,17 @@ async function onSessionMessage(msg, fromPeerId) {
       }
       break
     }
+
+    case 'TACAS_DIRECT_MESSAGE': {
+      if (msg.payload?.toPosition === activePosition) {
+        useTacasStore.getState().addDirectMessage({
+          ...msg.payload,
+          from: msg.fromPosition,
+          timestamp: msg.timestamp ?? msg.payload.timestamp,
+        })
+      }
+      break
+    }
   }
 }
 
@@ -924,6 +946,11 @@ if (IS_POPUP) {
     if (data.facilityId !== facilityId || data.positionName !== positionName) return
     if (data.kind === 'module')       sendWebrtcEvent(data.type, data.payload)
     else if (data.kind === 'session') sendWebrtcSessionEvent(data.type, data.payload)
+    else if (data.kind === 'tacasDirect') {
+      if (!transmitTacasDirectMessage(data.payload)) {
+        console.error(`Unable to send TACAS direct message to ${data.payload?.toPosition ?? 'unknown recipient'}`)
+      }
+    }
   }
 }
 
@@ -974,6 +1001,37 @@ export function sendChatMessage({ text, toPosition = null, broadcast = false }) 
     toPosition:   toPosition ?? null,
     timestamp,
   })
+}
+
+function transmitTacasDirectMessage(message) {
+  const target = effectiveClientList().find((client) =>
+    client.position === message.toPosition && client.peerId !== selfId
+  )
+  if (!sendSession || !target) return false
+
+  const msg = envelope('TACAS_DIRECT_MESSAGE', message)
+  logMsg('→ session', msg, target.peerId)
+  sendSession(msg, target.peerId)
+  useTacasStore.getState().addDirectMessage(message)
+  return true
+}
+
+export function sendTacasDirectMessage({ text, toPosition }) {
+  const message = {
+    id: crypto.randomUUID(),
+    from: activePosition,
+    toPosition,
+    text,
+    timestamp: Date.now(),
+  }
+
+  if (IS_POPUP) {
+    forwardToMainWindow('tacasDirect', 'TACAS_DIRECT_MESSAGE', message)
+    useTacasStore.getState().addDirectMessage(message)
+    return true
+  }
+
+  return transmitTacasDirectMessage(message)
 }
 
 export async function initWebrtc({ olympusUrl, password, relayPassword, coalition, position, module: mod, frequency, facility = '', suffix = '' }) {
